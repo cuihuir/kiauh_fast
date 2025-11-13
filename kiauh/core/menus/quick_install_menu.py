@@ -306,17 +306,16 @@ class QuickInstallMenu(BaseMenu):
         """安装 Mainsail"""
         from components.webui_client.client_setup import install_client
         from components.webui_client.mainsail_data import MainsailData
-
-        # 临时设置端口
         from core.settings.kiauh_settings import KiauhSettings
 
+        # 临时设置端口
         settings = KiauhSettings()
         original_port = settings.mainsail.port
         settings.mainsail.port = port
         settings.save()
 
         try:
-            install_client(MainsailData())
+            install_client(MainsailData(), settings=settings)
         finally:
             # 恢复原始端口设置
             settings.mainsail.port = original_port
@@ -326,17 +325,16 @@ class QuickInstallMenu(BaseMenu):
         """安装 Fluidd"""
         from components.webui_client.client_setup import install_client
         from components.webui_client.fluidd_data import FluiddData
-
-        # 临时设置端口
         from core.settings.kiauh_settings import KiauhSettings
 
+        # 临时设置端口
         settings = KiauhSettings()
         original_port = settings.fluidd.port
         settings.fluidd.port = port
         settings.save()
 
         try:
-            install_client(FluiddData())
+            install_client(FluiddData(), settings=settings)
         finally:
             # 恢复原始端口设置
             settings.fluidd.port = original_port
