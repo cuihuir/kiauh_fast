@@ -164,7 +164,8 @@ class QuickInstallMenu(BaseMenu):
                 subprocess.run(["sudo", "reboot"])
 
         input("\nPress Enter to continue...")
-        self._return_to_previous_menu()
+        if self.previous_menu:
+            self.previous_menu().run()
 
     def _validate_selections(self) -> bool:
         """验证选择的有效性"""
