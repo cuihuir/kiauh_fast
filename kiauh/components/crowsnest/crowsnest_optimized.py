@@ -13,8 +13,9 @@
 from __future__ import annotations
 
 import re
+import time
 from pathlib import Path
-from subprocess import CalledProcessError, run, PIPE, DEVNULL
+from subprocess import CalledProcessError, run, PIPE, DEVNULL, Popen
 from typing import List
 
 from components.crowsnest import (
@@ -23,6 +24,7 @@ from components.crowsnest import (
 )
 from components.klipper.klipper import Klipper
 from core.logger import DialogType, Logger
+from core.spinner import Spinner
 from utils.git_utils import git_clone_wrapper
 from utils.input_utils import get_confirm
 from utils.instance_utils import get_instances
@@ -340,22 +342,36 @@ def run_crowsnest_makefile_install() -> bool:
 
         # Step 2: make install
         Logger.print_status("Running 'sudo make install' ...")
-        Logger.print_info("This may take a while...")
+        Logger.print_info("This may take 5-10 minutes (compiling ustreamer)...")
+        Logger.print_info("Tip: Open another terminal and run 'top' to see compilation progress")
 
-        result = run(
-            ["sudo", "make", "install"],
-            cwd=CROWSNEST_DIR,
-            capture_output=True,
-            text=True,
-        )
+        # 使用 Popen 后台运行，显示 Spinner
+        spinner = Spinner(message="Installing crowsnest (compiling ustreamer)")
+        spinner.start()
 
-        if result.returncode != 0:
+        try:
+            process = Popen(
+                ["sudo", "make", "install"],
+                cwd=CROWSNEST_DIR,
+                stdout=PIPE,
+                stderr=PIPE,
+                text=True,
+            )
+
+            # 等待进程完成
+            stdout, stderr = process.communicate()
+            returncode = process.returncode
+
+        finally:
+            spinner.stop()
+
+        if returncode != 0:
             Logger.print_error("Installation failed!")
-            if result.stderr:
-                Logger.print_error(result.stderr)
+            if stderr:
+                Logger.print_error(stderr)
 
             # 检查是否是 held packages 问题
-            error_text = (result.stderr + result.stdout).lower()
+            error_text = (stderr + stdout).lower()
             if "held packages" in error_text or "pkgproblemresolver" in error_text:
                 Logger.print_dialog(
                     DialogType.ERROR,
