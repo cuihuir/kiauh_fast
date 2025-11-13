@@ -56,8 +56,15 @@ class QuickInstallMenu(BaseMenu):
         }
 
     def print_menu(self) -> None:
+        from components.klipper.klipper import Klipper
+        from components.moonraker.moonraker import Moonraker
+
         checked = f"[{Color.apply('✓', Color.GREEN)}]"
         unchecked = "[ ]"
+
+        # 检查安装状态
+        klipper_installed = len(get_instances(Klipper)) > 0
+        moonraker_installed = len(get_instances(Moonraker)) > 0
 
         o1 = checked if self.selections["klipper"] else unchecked
         o2 = checked if self.selections["moonraker"] else unchecked
@@ -66,14 +73,18 @@ class QuickInstallMenu(BaseMenu):
         o5 = checked if self.selections["klipperscreen"] else unchecked
         o6 = checked if self.selections["crowsnest"] else unchecked
 
+        # 安装状态标记（简短版本）
+        k_installed = Color.apply(" ✓已装", Color.CYAN) if klipper_installed else ""
+        m_installed = Color.apply(" ✓已装", Color.CYAN) if moonraker_installed else ""
+
         menu = textwrap.dedent(
             f"""
             ╟───────────────────────────────────────────────────────╢
             ║ Select components to install (toggle with number):   ║
             ║ 选择要安装的组件（输入数字切换）:                       ║
             ╟───────────────────────────────────────────────────────╢
-            ║ 1) {o1} Klipper         (Required / 必需)             ║
-            ║ 2) {o2} Moonraker       (Required / 必需)             ║
+            ║ 1) {o1} Klipper         (Required / 必需){k_installed}
+            ║ 2) {o2} Moonraker       (Required / 必需){m_installed}
             ║ 3) {o3} Mainsail        (Web UI)                      ║
             ║ 4) {o4} Fluidd          (Web UI)                      ║
             ║ 5) {o5} KlipperScreen   (Touch UI, requires reboot)  ║
@@ -156,6 +167,9 @@ class QuickInstallMenu(BaseMenu):
 
     def _validate_selections(self) -> bool:
         """验证选择的有效性"""
+        from components.klipper.klipper import Klipper
+        from components.moonraker.moonraker import Moonraker
+
         selected_count = sum(self.selections.values())
 
         if selected_count == 0:
@@ -165,18 +179,27 @@ class QuickInstallMenu(BaseMenu):
             )
             return False
 
-        # Klipper 和 Moonraker 是必需的
-        if not self.selections["klipper"]:
+        # 检查 Klipper 是否已安装或已选择
+        klipper_instances = get_instances(Klipper)
+        klipper_installed = len(klipper_instances) > 0
+
+        if not klipper_installed and not self.selections["klipper"]:
             Logger.print_error("Klipper is required! / Klipper 是必需的！")
             Logger.print_info(
-                "Please select Klipper (option 1). / 请选择 Klipper（选项 1）。"
+                "Klipper is not installed. Please select Klipper (option 1). / "
+                "Klipper 未安装，请选择 Klipper（选项 1）。"
             )
             return False
 
-        if not self.selections["moonraker"]:
+        # 检查 Moonraker 是否已安装或已选择
+        moonraker_instances = get_instances(Moonraker)
+        moonraker_installed = len(moonraker_instances) > 0
+
+        if not moonraker_installed and not self.selections["moonraker"]:
             Logger.print_error("Moonraker is required! / Moonraker 是必需的！")
             Logger.print_info(
-                "Please select Moonraker (option 2). / 请选择 Moonraker（选项 2）。"
+                "Moonraker is not installed. Please select Moonraker (option 2). / "
+                "Moonraker 未安装，请选择 Moonraker（选项 2）。"
             )
             return False
 
@@ -232,18 +255,27 @@ class QuickInstallMenu(BaseMenu):
 
     def _execute_installation(self) -> None:
         """执行安装"""
+        from components.klipper.klipper import Klipper
+        from components.moonraker.moonraker import Moonraker
+
         Logger.print_status("\n" + "═" * 60)
         Logger.print_status("Starting Installation / 开始安装")
         Logger.print_status("═" * 60 + "\n")
 
         try:
-            # 1. 安装 Klipper
+            # 1. 安装 Klipper (如果未安装)
             if self.selections["klipper"]:
-                self._install_component("Klipper", self._install_klipper)
+                if get_instances(Klipper):
+                    Logger.print_info("Klipper already installed, skipping... / Klipper 已安装，跳过...")
+                else:
+                    self._install_component("Klipper", self._install_klipper)
 
-            # 2. 安装 Moonraker
+            # 2. 安装 Moonraker (如果未安装)
             if self.selections["moonraker"]:
-                self._install_component("Moonraker", self._install_moonraker)
+                if get_instances(Moonraker):
+                    Logger.print_info("Moonraker already installed, skipping... / Moonraker 已安装，跳过...")
+                else:
+                    self._install_component("Moonraker", self._install_moonraker)
 
             # 3. 安装 Mainsail
             if self.selections["mainsail"]:
