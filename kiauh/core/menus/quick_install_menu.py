@@ -17,6 +17,7 @@ from core.menus.base_menu import BaseMenu, Option, clear
 from core.logger import Logger, DialogType
 from core.types.color import Color
 from utils.input_utils import get_selection_input
+from utils.instance_utils import get_instances
 
 
 class QuickInstallMenu(BaseMenu):
