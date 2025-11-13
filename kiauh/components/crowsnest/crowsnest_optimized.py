@@ -131,21 +131,28 @@ def unhold_v4l_utils() -> bool:
         )
 
         if "v4l-utils" in result.stdout:
-            Logger.print_status("Unholding v4l-utils package ...")
-            run(
+            Logger.print_status("v4l-utils is on hold, unholding ...")
+            result = run(
                 ["sudo", "apt-mark", "unhold", "v4l-utils"],
-                check=True,
-                stderr=PIPE,
+                capture_output=True,
+                text=True,
             )
-            Logger.print_ok("v4l-utils unhold successful!")
+            if result.returncode == 0:
+                Logger.print_ok("v4l-utils unhold successful!")
+            else:
+                Logger.print_warn(f"Failed to unhold v4l-utils: {result.stderr}")
+                return False
         else:
             Logger.print_ok("v4l-utils is not on hold.")
 
         return True
 
     except CalledProcessError as e:
-        Logger.print_error(f"Error unholding v4l-utils: {e}")
+        Logger.print_error(f"Error checking/unholding v4l-utils: {e}")
         return False
+    except Exception as e:
+        Logger.print_warn(f"Unexpected error with v4l-utils hold check: {e}")
+        return True  # 继续安装
 
 
 def install_crowsnest_dependencies() -> bool:
@@ -204,7 +211,35 @@ def install_crowsnest_dependencies() -> bool:
                 Logger.print_error(
                     f"Could not install: {', '.join(failed_packages)}"
                 )
-                return False
+                Logger.print_warn("Failed to install dependencies!")
+                Logger.print_info("Please check your apt sources and try again.")
+                Logger.print_info("See: /etc/apt/sources.list")
+
+                # 检查是否有关键包失败
+                critical_packages = ["make", "crudini", "python3-iniparse"]
+                critical_failed = [p for p in failed_packages if p in critical_packages]
+
+                if critical_failed:
+                    Logger.print_error(
+                        f"Critical packages failed: {', '.join(critical_failed)}"
+                    )
+                    return False
+
+                # 非关键包失败，询问是否继续
+                from utils.input_utils import get_confirm
+
+                Logger.print_warn(
+                    f"\nNon-critical packages failed: {', '.join(failed_packages)}"
+                )
+                Logger.print_info(
+                    "Crowsnest may work without these packages, but some features may be limited."
+                )
+
+                if not get_confirm("Continue installation anyway?", default_choice=True):
+                    Logger.print_info("Installation aborted by user.")
+                    return False
+
+                Logger.print_warn("Continuing installation without failed packages...")
 
         Logger.print_ok("All crowsnest dependencies installed successfully!")
         return True
