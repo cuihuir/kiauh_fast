@@ -11,3 +11,11 @@ __pycache__
 *.iml
 kiauh.cfg
 klipper_repos.txt
+
+# Internal design documents (not for public release)
+CLAUDE.md
+INTEGRATION_COMPLETE.md
+OPTIMIZATION_SUMMARY.md
+
+# Reference materials
+*.pdf
