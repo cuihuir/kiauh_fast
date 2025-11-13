@@ -155,6 +155,64 @@ def unhold_v4l_utils() -> bool:
         return True  # 继续安装
 
 
+def clear_all_held_packages() -> bool:
+    """
+    清理系统中所有 held packages
+    :return: True if successful or user chooses to continue
+    """
+    try:
+        Logger.print_status("Checking for held packages...")
+
+        # 获取所有 held packages
+        result = run(["apt-mark", "showhold"], capture_output=True, text=True)
+
+        held_packages = [
+            line.strip() for line in result.stdout.split("\n") if line.strip()
+        ]
+
+        if not held_packages:
+            Logger.print_ok("No held packages found.")
+            return True
+
+        Logger.print_warn(f"Found {len(held_packages)} held package(s):")
+        for pkg in held_packages:
+            Logger.print_info(f"  - {pkg}")
+
+        Logger.print_info(
+            "\nHeld packages may prevent crowsnest installation."
+        )
+
+        # 询问是否 unhold
+        if not get_confirm(
+            "Unhold these packages to continue installation?", default_choice=True
+        ):
+            Logger.print_info("Installation aborted by user.")
+            return False
+
+        # Unhold 所有包
+        Logger.print_status("Unholding packages...")
+        for pkg in held_packages:
+            try:
+                run(
+                    ["sudo", "apt-mark", "unhold", pkg],
+                    check=True,
+                    capture_output=True,
+                )
+                Logger.print_ok(f"Unhold: {pkg}")
+            except CalledProcessError as e:
+                Logger.print_warn(f"Failed to unhold {pkg}: {e}")
+
+        Logger.print_ok("All held packages have been unhold!")
+        return True
+
+    except CalledProcessError as e:
+        Logger.print_error(f"Error checking held packages: {e}")
+        return True  # 继续安装，即使检查失败
+    except Exception as e:
+        Logger.print_warn(f"Unexpected error checking held packages: {e}")
+        return True  # 继续安装
+
+
 def install_crowsnest_dependencies() -> bool:
     """
     智能安装 crowsnest 依赖，包含错误处理
@@ -266,6 +324,12 @@ def run_crowsnest_makefile_install() -> bool:
         )
         Logger.print_ok("Configuration successful!")
 
+        # Step 1.5: Clear held packages before make install
+        Logger.print_status("\nPreparing for installation...")
+        if not clear_all_held_packages():
+            Logger.print_error("Installation aborted - cannot clear held packages!")
+            return False
+
         # Step 2: make install
         Logger.print_status("Running 'sudo make install' ...")
         Logger.print_info("This may take a while...")
@@ -279,7 +343,33 @@ def run_crowsnest_makefile_install() -> bool:
 
         if result.returncode != 0:
             Logger.print_error("Installation failed!")
-            Logger.print_error(result.stderr)
+            if result.stderr:
+                Logger.print_error(result.stderr)
+
+            # 检查是否是 held packages 问题
+            error_text = (result.stderr + result.stdout).lower()
+            if "held packages" in error_text or "pkgproblemresolver" in error_text:
+                Logger.print_dialog(
+                    DialogType.ERROR,
+                    [
+                        "Installation failed due to package conflicts!",
+                        "",
+                        "Possible causes:",
+                        "1. System has held packages blocking installation",
+                        "2. Conflicting apt sources",
+                        "",
+                        "Try these manual fixes:",
+                        "1. Run: sudo apt-mark showhold",
+                        "2. Run: sudo apt-mark unhold <package-name>",
+                        "3. Run: sudo apt-get update",
+                        "4. Run: sudo apt-get upgrade -y --allow-change-held-packages",
+                        "5. Try installation again",
+                        "",
+                        "Or check your apt sources:",
+                        "- Edit: /etc/apt/sources.list",
+                        "- Comment out problematic repos",
+                    ],
+                )
             return False
 
         Logger.print_ok("Crowsnest installation successful!")
