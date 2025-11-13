@@ -23,6 +23,7 @@ from typing import List, Literal, Set, Tuple
 
 from core.constants import SYSTEMD
 from core.logger import Logger
+from core.settings.kiauh_settings import KiauhSettings
 from utils.fs_utils import check_file_exist, remove_with_sudo
 from utils.input_utils import get_confirm
 
@@ -91,6 +92,106 @@ def parse_packages_from_file(source_file: Path) -> List[str]:
     return packages
 
 
+# ============================================================================
+# UV (Fast Python Package Manager) Support
+# ============================================================================
+
+def is_uv_installed() -> bool:
+    """检查 uv 是否已安装"""
+    try:
+        result = run(["uv", "--version"], capture_output=True, text=True)
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def install_uv() -> bool:
+    """
+    安装 uv（快速 Python 包管理器）
+    :return: True if successful
+    """
+    Logger.print_status("Installing uv (fast Python package manager)...")
+    Logger.print_info("This will speed up Python package installation by 10-100x!")
+
+    try:
+        # 使用官方安装脚本
+        cmd = [
+            "curl",
+            "-LsSf",
+            "https://astral.sh/uv/install.sh",
+            "|",
+            "sh",
+        ]
+
+        # 使用 shell=True 来支持管道
+        result = run(
+            "curl -LsSf https://astral.sh/uv/install.sh | sh",
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            Logger.print_error(f"Failed to install uv: {result.stderr}")
+            return False
+
+        # 添加到 PATH（~/.cargo/bin）
+        cargo_bin = Path.home() / ".cargo" / "bin"
+        if cargo_bin.exists():
+            Logger.print_ok("uv installed successfully!")
+            Logger.print_info(f"uv location: {cargo_bin / 'uv'}")
+            return True
+        else:
+            Logger.print_warn("uv installation completed but binary not found in ~/.cargo/bin")
+            return False
+
+    except Exception as e:
+        Logger.print_error(f"Error installing uv: {e}")
+        return False
+
+
+def ensure_uv_installed() -> bool:
+    """
+    确保 uv 已安装，如果没有则提示安装
+    :return: True if uv is available
+    """
+    if is_uv_installed():
+        return True
+
+    Logger.print_warn("uv is not installed.")
+    Logger.print_info("uv is a fast Python package manager (10-100x faster than pip).")
+
+    if get_confirm("Install uv now for faster Python package installation?", default_choice=True):
+        return install_uv()
+    else:
+        Logger.print_info("Continuing with pip (slower)...")
+        return False
+
+
+def get_uv_binary() -> str:
+    """获取 uv 二进制文件路径"""
+    # 检查常见位置
+    locations = [
+        Path.home() / ".cargo" / "bin" / "uv",
+        Path("/usr/local/bin/uv"),
+        Path("/usr/bin/uv"),
+    ]
+
+    for loc in locations:
+        if loc.exists():
+            return str(loc)
+
+    # 尝试从 PATH 中找
+    try:
+        result = run(["which", "uv"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except:
+        pass
+
+    return "uv"  # 默认假设在 PATH 中
+
+
 def create_python_venv(
     target: Path,
     force: bool = False,
@@ -108,29 +209,46 @@ def create_python_venv(
     :return: bool
     """
     Logger.print_status("Set up Python virtual environment ...")
-    # If binarry override is not set, we use default defined here
+
+    # 尝试使用 uv（如果可用）
+    use_uv = ensure_uv_installed()
+
+    # If binary override is not set, we use default defined here
     python_binary = use_python_binary if use_python_binary else "/usr/bin/python3"
-    cmd = ["virtualenv", "-p", python_binary, target.as_posix()]
-    cmd.append(
-        "--system-site-packages"
-    ) if allow_access_to_system_site_packages else None
+
+    # 根据是否使用 uv 构造命令
+    if use_uv:
+        uv_bin = get_uv_binary()
+        cmd = [uv_bin, "venv", target.as_posix()]
+        if use_python_binary:
+            cmd.extend(["--python", python_binary])
+        if allow_access_to_system_site_packages:
+            cmd.append("--system-site-packages")
+    else:
+        cmd = ["virtualenv", "-p", python_binary, target.as_posix()]
+        cmd.append(
+            "--system-site-packages"
+        ) if allow_access_to_system_site_packages else None
 
     n = 2
     while(n > 0):
         if not target.exists():
             try:
                 run(cmd, check=True)
-                Logger.print_ok("Setup of virtualenv successful!")
+                if use_uv:
+                    Logger.print_ok("Setup of virtualenv successful (using uv - 10-100x faster)!")
+                else:
+                    Logger.print_ok("Setup of virtualenv successful!")
                 return True
             except CalledProcessError as e:
                 Logger.print_error(f"Error setting up virtualenv:\n{e}")
                 return False
         else:
             if n == 1:
-                # This case should never happen, 
+                # This case should never happen,
                 # but the function should still behave correctly
                 Logger.print_error("Virtualenv still exists after deletion.")
-                return False                            
+                return False
             if not force and not get_confirm(
                 "Virtualenv already exists. Re-create?", default_choice=False
             ):
@@ -152,6 +270,11 @@ def update_python_pip(target: Path) -> None:
     :param target: Path of the virtualenv
     :return: None
     """
+    # 如果使用 uv，不需要更新 pip（uv 自带最新版本）
+    if is_uv_installed():
+        Logger.print_info("Using uv - pip update not needed!")
+        return
+
     Logger.print_status("Updating pip ...")
     try:
         pip_location: Path = target.joinpath("bin/pip")
@@ -185,12 +308,28 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
     """
     try:
         Logger.print_status("Installing Python requirements ...")
-        command = [
-            target.joinpath("bin/pip").as_posix(),
-            "install",
-            "-r",
-            f"{requirements}",
-        ]
+
+        # 使用 uv pip install（如果可用）或普通 pip
+        if is_uv_installed():
+            uv_bin = get_uv_binary()
+            command = [
+                uv_bin,
+                "pip",
+                "install",
+                "--python",
+                target.joinpath("bin/python").as_posix(),
+                "-r",
+                f"{requirements}",
+            ]
+            Logger.print_info("Using uv (10-100x faster than pip)...")
+        else:
+            command = [
+                target.joinpath("bin/pip").as_posix(),
+                "install",
+                "-r",
+                f"{requirements}",
+            ]
+
         result = run(command, stderr=PIPE, text=True)
 
         if result.returncode != 0:
@@ -214,12 +353,24 @@ def install_python_packages(target: Path, packages: List[str]) -> None:
     """
     try:
         Logger.print_status("Installing Python requirements ...")
-        command = [
-            target.joinpath("bin/pip").as_posix(),
-            "install",
-        ]
+
+        # 使用 uv pip install（如果可用）或普通 pip
+        if is_uv_installed():
+            uv_bin = get_uv_binary()
+            command = [
+                uv_bin,
+                "pip",
+                "install",
+                "--python",
+                target.joinpath("bin/python").as_posix(),
+            ]
+            Logger.print_info("Using uv (10-100x faster than pip)...")
+        else:
+            command = [target.joinpath("bin/pip").as_posix(), "install"]
+
         for pkg in packages:
             command.append(pkg)
+
         result = run(command, stderr=PIPE, text=True)
 
         if result.returncode != 0:
