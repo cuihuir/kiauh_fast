@@ -308,8 +308,10 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
     try:
         Logger.print_status("Installing Python requirements ...")
 
-        # 使用 uv pip install（如果可用）或普通 pip
-        if is_uv_installed():
+        # 尝试使用 uv（如果可用），如果没有则提示安装
+        use_uv = ensure_uv_installed()
+
+        if use_uv:
             uv_bin = get_uv_binary()
             command = [
                 uv_bin,
@@ -353,8 +355,10 @@ def install_python_packages(target: Path, packages: List[str]) -> None:
     try:
         Logger.print_status("Installing Python requirements ...")
 
-        # 使用 uv pip install（如果可用）或普通 pip
-        if is_uv_installed():
+        # 尝试使用 uv（如果可用），如果没有则提示安装
+        use_uv = ensure_uv_installed()
+
+        if use_uv:
             uv_bin = get_uv_binary()
             command = [
                 uv_bin,

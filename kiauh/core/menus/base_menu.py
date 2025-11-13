@@ -233,6 +233,14 @@ class BaseMenu(metaclass=PostInitCaller):
 
             self.run()
 
+        except KeyboardInterrupt:
+            Logger.print_warn("\n\nOperation cancelled by user (Ctrl-C).")
+            Logger.print_info("Returning to previous menu...")
+            if self.previous_menu:
+                self.previous_menu().run()
+            else:
+                sys.exit(0)
+
         except Exception as e:
             Logger.print_error(
                 f"An unexpected error occured:\n{e}\n{traceback.format_exc()}"
