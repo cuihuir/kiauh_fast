@@ -450,13 +450,34 @@ def install_crowsnest_optimized() -> bool:
         Logger.print_info("Crowsnest installation aborted.")
         return False
 
-    # Step 3: Clone repository (使用浅克隆优化)
+    # Step 3: Clone repository (处理权限问题 + 使用浅克隆优化)
     Logger.print_status("Cloning crowsnest repository ...")
+
+    # 如果目录存在，用 sudo 删除（避免权限问题）
+    if CROWSNEST_DIR.exists():
+        Logger.print_warn(f"'{CROWSNEST_DIR}' already exists.")
+        if get_confirm("Remove existing directory and re-clone?", default_choice=True):
+            Logger.print_status("Removing existing crowsnest directory...")
+            try:
+                run(
+                    ["sudo", "rm", "-rf", str(CROWSNEST_DIR)],
+                    check=True,
+                    capture_output=True,
+                )
+                Logger.print_ok("Existing directory removed.")
+            except CalledProcessError as e:
+                Logger.print_error(f"Failed to remove existing directory: {e}")
+                return False
+        else:
+            Logger.print_info("Crowsnest installation aborted.")
+            return False
+
     try:
         git_clone_wrapper(
             CROWSNEST_REPO,
             CROWSNEST_DIR,
             "master",
+            force=True,  # 已经手动处理了，强制克隆
         )
     except Exception as e:
         Logger.print_error(f"Failed to clone repository: {e}")
