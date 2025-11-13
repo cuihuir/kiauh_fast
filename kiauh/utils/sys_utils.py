@@ -22,7 +22,7 @@ from subprocess import DEVNULL, PIPE, CalledProcessError, Popen, check_output, r
 from typing import List, Literal, Set, Tuple
 
 from core.constants import SYSTEMD
-from core.logger import Logger
+from core.logger import DialogType, Logger
 from utils.fs_utils import check_file_exist, remove_with_sudo
 from utils.input_utils import get_confirm
 
@@ -95,6 +95,10 @@ def parse_packages_from_file(source_file: Path) -> List[str]:
 # UV (Fast Python Package Manager) Support
 # ============================================================================
 
+# 全局状态：记录用户是否已被询问过安装 uv
+_UV_INSTALL_ASKED = False
+_UV_INSTALL_FAILED = False
+
 def is_uv_installed() -> bool:
     """检查 uv 是否已安装"""
     try:
@@ -112,41 +116,111 @@ def install_uv() -> bool:
     Logger.print_status("Installing uv (fast Python package manager)...")
     Logger.print_info("This will speed up Python package installation by 10-100x!")
 
+    # 方法 1: 使用官方安装脚本（推荐）
     try:
-        # 使用官方安装脚本
-        cmd = [
-            "curl",
-            "-LsSf",
-            "https://astral.sh/uv/install.sh",
-            "|",
-            "sh",
-        ]
+        Logger.print_info("Trying official installer (from astral.sh)...")
+        Logger.print_info("Downloading and installing uv (showing progress)...")
+        print()  # 空行，让输出更清晰
 
-        # 使用 shell=True 来支持管道
+        # 不捕获输出，让用户看到实时进度
         result = run(
             "curl -LsSf https://astral.sh/uv/install.sh | sh",
             shell=True,
-            capture_output=True,
-            text=True,
+            timeout=180,  # 增加到180秒超时（下载可能需要时间）
         )
 
-        if result.returncode != 0:
-            Logger.print_error(f"Failed to install uv: {result.stderr}")
-            return False
+        print()  # 安装完成后空行
 
-        # 添加到 PATH（~/.cargo/bin）
-        cargo_bin = Path.home() / ".cargo" / "bin"
-        if cargo_bin.exists():
-            Logger.print_ok("uv installed successfully!")
-            Logger.print_info(f"uv location: {cargo_bin / 'uv'}")
+        # 检查是否成功安装（不仅看 returncode，还要检查文件）
+        cargo_bin = Path.home() / ".cargo" / "bin" / "uv"
+        local_bin = Path.home() / ".local" / "bin" / "uv"
+
+        if cargo_bin.exists() or local_bin.exists():
+            uv_path = cargo_bin if cargo_bin.exists() else local_bin
+            Logger.print_ok("uv installed successfully via official installer!")
+            Logger.print_info(f"uv location: {uv_path}")
+            # 添加到当前 shell 的 PATH
+            import os
+            os.environ["PATH"] = f"{uv_path.parent}:{os.environ.get('PATH', '')}"
             return True
-        else:
-            Logger.print_warn("uv installation completed but binary not found in ~/.cargo/bin")
-            return False
+
+        # 安装器运行了但没找到文件
+        Logger.print_warn("Installer completed but uv binary not found")
 
     except Exception as e:
-        Logger.print_error(f"Error installing uv: {e}")
-        return False
+        Logger.print_warn(f"Official installer error: {e}")
+
+    # 方法 2: 使用 pip 安装（备用方案）
+    # 先检查 pip 是否可用
+    try:
+        pip_check = run(
+            ["python3", "-m", "pip", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        pip_available = pip_check.returncode == 0
+    except:
+        pip_available = False
+
+    if not pip_available:
+        Logger.print_warn("pip is not available on this system")
+        Logger.print_info("To install pip: sudo apt install python3-pip")
+    else:
+        try:
+            Logger.print_info("Trying pip install (alternative method)...")
+
+            # 使用 python3 -m pip (更兼容)
+            result = run(
+                ["python3", "-m", "pip", "install", "--user", "uv"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if result.returncode == 0:
+                # 检查 pip 安装位置
+                home_bin = Path.home() / ".local" / "bin" / "uv"
+                if home_bin.exists():
+                    Logger.print_ok("uv installed successfully via pip!")
+                    Logger.print_info(f"uv location: {home_bin}")
+                    # 添加到 PATH
+                    import os
+                    os.environ["PATH"] = f"{home_bin.parent}:{os.environ.get('PATH', '')}"
+                    return True
+
+                # 检查其他可能的位置
+                for loc in ["/usr/local/bin/uv", Path.home() / ".cargo" / "bin" / "uv"]:
+                    if Path(loc).exists():
+                        Logger.print_ok(f"uv installed successfully! Location: {loc}")
+                        return True
+
+            Logger.print_warn(f"pip install failed: {result.stderr[:200] if result.stderr else 'unknown error'}")
+
+        except Exception as e:
+            Logger.print_warn(f"pip install error: {e}")
+
+    # 所有方法都失败
+    Logger.print_error("Failed to install uv via all methods!")
+    Logger.print_dialog(
+        DialogType.ERROR,
+        [
+            "uv installation failed!",
+            "",
+            "Solutions:",
+            "1. Manual installation (recommended):",
+            "   curl -LsSf https://astral.sh/uv/install.sh | sh",
+            "",
+            "2. Or install via pip:",
+            "   First install pip: sudo apt install python3-pip",
+            "   Then install uv: python3 -m pip install --user uv",
+            "",
+            "3. If behind firewall, configure proxy or use pip method",
+            "",
+            "KIAUH will continue with pip (slower but works).",
+        ],
+    )
+    return False
 
 
 def ensure_uv_installed() -> bool:
@@ -154,14 +228,31 @@ def ensure_uv_installed() -> bool:
     确保 uv 已安装，如果没有则提示安装
     :return: True if uv is available
     """
+    global _UV_INSTALL_ASKED, _UV_INSTALL_FAILED
+
+    # 检查 uv 是否已安装
     if is_uv_installed():
         return True
+
+    # 如果之前安装失败过，不再重复尝试
+    if _UV_INSTALL_FAILED:
+        return False
+
+    # 如果之前已经询问过用户（用户拒绝），不再重复询问
+    if _UV_INSTALL_ASKED:
+        return False
+
+    # 首次询问用户
+    _UV_INSTALL_ASKED = True
 
     Logger.print_warn("uv is not installed.")
     Logger.print_info("uv is a fast Python package manager (10-100x faster than pip).")
 
     if get_confirm("Install uv now for faster Python package installation?", default_choice=True):
-        return install_uv()
+        success = install_uv()
+        if not success:
+            _UV_INSTALL_FAILED = True  # 标记安装失败，避免重复尝试
+        return success
     else:
         Logger.print_info("Continuing with pip (slower)...")
         return False
@@ -169,9 +260,10 @@ def ensure_uv_installed() -> bool:
 
 def get_uv_binary() -> str:
     """获取 uv 二进制文件路径"""
-    # 检查常见位置
+    # 检查常见位置（包括 pip 安装位置）
     locations = [
-        Path.home() / ".cargo" / "bin" / "uv",
+        Path.home() / ".local" / "bin" / "uv",  # pip install --user
+        Path.home() / ".cargo" / "bin" / "uv",  # official installer
         Path("/usr/local/bin/uv"),
         Path("/usr/bin/uv"),
     ]
@@ -308,34 +400,220 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
     try:
         Logger.print_status("Installing Python requirements ...")
 
-        # 尝试使用 uv（如果可用），如果没有则提示安装
+        # 检查并分离 requirements.txt 中的标准包和本地路径
+        standard_packages = []
+        local_paths = []
+
+        if requirements.exists():
+            content = requirements.read_text()
+
+            for line in content.splitlines():
+                original_line = line
+                line = line.strip()
+
+                if not line or line.startswith("#"):
+                    continue
+
+                # 处理选项行（-e, -r, --index-url, --find-links 等）
+                if line.startswith("-"):
+                    # 特殊处理 --find-links 选项中的本地路径
+                    if line.startswith("--find-links=") or line.startswith("-f="):
+                        # 提取路径部分
+                        if line.startswith("--find-links="):
+                            path_part = line.split("=", 1)[1].strip()
+                        else:
+                            path_part = line.split("=", 1)[1].strip()
+
+                        # 检查是否是本地路径（不包含 ://）
+                        if "://" not in path_part:
+                            # 尝试解析为绝对路径
+                            potential_paths = [
+                                requirements.parent.parent / path_part,
+                                requirements.parent / path_part,
+                            ]
+
+                            found = False
+                            for potential_path in potential_paths:
+                                try:
+                                    resolved = potential_path.resolve()
+                                    if resolved.exists() and resolved.is_dir():
+                                        # 替换为绝对路径
+                                        if line.startswith("--find-links="):
+                                            fixed_line = f"--find-links={resolved}"
+                                        else:
+                                            fixed_line = f"-f={resolved}"
+                                        standard_packages.append(fixed_line)
+                                        found = True
+                                        break
+                                except:
+                                    pass
+
+                            if found:
+                                continue
+                            # 找不到目录，忽略这个选项（避免 uv 报错）
+
+                    # 其他选项行保持原样
+                    standard_packages.append(original_line)
+                    continue
+
+                # 检测是否是本地路径
+                is_local_path = False
+
+                # 明确的相对路径
+                if line.startswith("./") or line.startswith("../"):
+                    is_local_path = True
+                # 包含 / 但不是 URL（如 subdir/package）
+                elif "/" in line and "://" not in line:
+                    is_local_path = True
+                # 包含下划线通常是目录名（如 python_wheels）
+                elif "_" in line and "://" not in line:
+                    # 确保不是包名带版本（如 some_package==1.0）
+                    if not any(op in line for op in ["==", ">=", "<=", "~=", ">", "<", "@"]):
+                        is_local_path = True
+
+                if not is_local_path:
+                    # 尝试检查目录是否存在
+                    if "://" not in line and not any(op in line for op in ["==", ">=", "<=", "~=", ">", "<", "@", "[", ";"]):
+                        potential_paths = [
+                            requirements.parent.parent / line,
+                            requirements.parent / line,
+                        ]
+
+                        for potential_path in potential_paths:
+                            try:
+                                resolved = potential_path.resolve()
+                                if resolved.exists() and resolved.is_dir():
+                                    is_local_path = True
+                                    break
+                            except:
+                                pass
+
+                if is_local_path:
+                    local_paths.append(line)
+                else:
+                    standard_packages.append(original_line)
+
+        # 如果有本地路径，显示信息
+        if local_paths:
+            Logger.print_info(f"Detected {len(local_paths)} local path(s): {', '.join(local_paths)}")
+            Logger.print_info("Will install standard packages from requirements, then local paths directly")
+
+        # 策略：分两步安装以最大化速度和兼容性
+        # 1. 用 uv 安装标准包（从 requirements.txt）
+        # 2. 用 uv pip 直接安装本地路径（绕过 requirements.txt 解析）
+
         use_uv = ensure_uv_installed()
 
-        if use_uv:
-            uv_bin = get_uv_binary()
-            command = [
-                uv_bin,
-                "pip",
-                "install",
-                "--python",
-                target.joinpath("bin/python").as_posix(),
-                "-r",
-                f"{requirements}",
-            ]
-            Logger.print_info("Using uv (10-100x faster than pip)...")
-        else:
-            command = [
-                target.joinpath("bin/pip").as_posix(),
-                "install",
-                "-r",
-                f"{requirements}",
-            ]
+        # 步骤 1: 安装标准包
+        if standard_packages:
+            if use_uv:
+                Logger.print_info("Installing standard packages with uv (10-100x faster)...")
+                # 创建临时 requirements 文件
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp:
+                    tmp.write('\n'.join(standard_packages))
+                    tmp_req = Path(tmp.name)
 
-        result = run(command, stderr=PIPE, text=True)
+                try:
+                    uv_bin = get_uv_binary()
+                    command = [
+                        uv_bin,
+                        "pip",
+                        "install",
+                        "--python",
+                        target.joinpath("bin/python").as_posix(),
+                        "-r",
+                        str(tmp_req),
+                    ]
+                    result = run(command, stderr=PIPE, text=True)
 
-        if result.returncode != 0:
-            Logger.print_error(f"{result.stderr}", False)
-            raise VenvCreationFailedException("Installing Python requirements failed!")
+                    if result.returncode != 0:
+                        Logger.print_error(f"{result.stderr}", False)
+                        raise VenvCreationFailedException("Installing standard packages failed!")
+
+                    Logger.print_ok("Standard packages installed successfully (via uv)")
+                finally:
+                    tmp_req.unlink()  # 删除临时文件
+            else:
+                # 没有 uv，用 pip 安装所有标准包
+                Logger.print_info("Installing standard packages with pip...")
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp:
+                    tmp.write('\n'.join(standard_packages))
+                    tmp_req = Path(tmp.name)
+
+                try:
+                    command = [
+                        target.joinpath("bin/pip").as_posix(),
+                        "install",
+                        "-r",
+                        str(tmp_req),
+                    ]
+                    result = run(command, stderr=PIPE, text=True)
+
+                    if result.returncode != 0:
+                        Logger.print_error(f"{result.stderr}", False)
+                        raise VenvCreationFailedException("Installing standard packages failed!")
+
+                    Logger.print_ok("Standard packages installed successfully")
+                finally:
+                    tmp_req.unlink()
+
+        # 步骤 2: 安装本地路径（用 uv pip 直接安装路径）
+        if local_paths:
+            if use_uv:
+                Logger.print_info("Installing local paths with uv pip...")
+                uv_bin = get_uv_binary()
+                for local_path in local_paths:
+                    # 解析完整路径
+                    if local_path.startswith("./") or local_path.startswith("../"):
+                        full_path = (requirements.parent / local_path).resolve()
+                    else:
+                        # 尝试父目录的父目录
+                        full_path = requirements.parent.parent / local_path
+                        if not full_path.exists():
+                            full_path = requirements.parent / local_path
+
+                    command = [
+                        uv_bin,
+                        "pip",
+                        "install",
+                        "--python",
+                        target.joinpath("bin/python").as_posix(),
+                        str(full_path),
+                    ]
+                    result = run(command, stderr=PIPE, text=True)
+
+                    if result.returncode != 0:
+                        Logger.print_error(f"{result.stderr}", False)
+                        raise VenvCreationFailedException(f"Installing local path {local_path} failed!")
+
+                Logger.print_ok("Local paths installed successfully (via uv)")
+            else:
+                # 没有 uv，用 pip
+                Logger.print_info("Installing local paths with pip...")
+                for local_path in local_paths:
+                    # 解析完整路径
+                    if local_path.startswith("./") or local_path.startswith("../"):
+                        full_path = (requirements.parent / local_path).resolve()
+                    else:
+                        # 尝试父目录的父目录
+                        full_path = requirements.parent.parent / local_path
+                        if not full_path.exists():
+                            full_path = requirements.parent / local_path
+
+                    command = [
+                        target.joinpath("bin/pip").as_posix(),
+                        "install",
+                        str(full_path),
+                    ]
+                    result = run(command, stderr=PIPE, text=True)
+
+                    if result.returncode != 0:
+                        Logger.print_error(f"{result.stderr}", False)
+                        raise VenvCreationFailedException(f"Installing local path {local_path} failed!")
+
+                Logger.print_ok("Local paths installed successfully")
 
         Logger.print_ok("Installing Python requirements successful!")
 
