@@ -155,43 +155,61 @@ def unhold_v4l_utils() -> bool:
         return True  # 继续安装
 
 
-def clear_all_held_packages() -> bool:
+def unhold_crowsnest_packages() -> bool:
     """
-    清理系统中所有 held packages
+    只 unhold Crowsnest 需要的包（避免影响系统其他 held packages）
     :return: True if successful or user chooses to continue
     """
     try:
-        Logger.print_status("Checking for held packages...")
+        Logger.print_status("Checking for held packages that may block crowsnest...")
 
         # 获取所有 held packages
         result = run(["apt-mark", "showhold"], capture_output=True, text=True)
+        all_held = set(line.strip() for line in result.stdout.split("\n") if line.strip())
 
-        held_packages = [
-            line.strip() for line in result.stdout.split("\n") if line.strip()
-        ]
-
-        if not held_packages:
+        if not all_held:
             Logger.print_ok("No held packages found.")
             return True
 
-        Logger.print_warn(f"Found {len(held_packages)} held package(s):")
-        for pkg in held_packages:
+        # Crowsnest 相关的包（只检查这些）
+        crowsnest_related = set([
+            "v4l-utils",
+            "libv4l-0",
+            "libv4l-dev",
+            "libv4l2rds0",
+            "libv4lconvert0",
+            "libv4l-rkmpp",  # Rockchip specific
+        ])
+
+        # 找出需要 unhold 的包（交集）
+        packages_to_unhold = all_held & crowsnest_related
+
+        if not packages_to_unhold:
+            Logger.print_ok("No crowsnest-related packages are held.")
+            Logger.print_info(f"System has {len(all_held)} held packages, but none affect crowsnest.")
+            return True
+
+        Logger.print_warn(f"Found {len(packages_to_unhold)} crowsnest-related held package(s):")
+        for pkg in sorted(packages_to_unhold):
             Logger.print_info(f"  - {pkg}")
 
         Logger.print_info(
-            "\nHeld packages may prevent crowsnest installation."
+            f"\nNote: System has {len(all_held)} total held packages."
+        )
+        Logger.print_info(
+            "Only the packages listed above will be unhold (safe for crowsnest)."
         )
 
         # 询问是否 unhold
         if not get_confirm(
-            "Unhold these packages to continue installation?", default_choice=True
+            "Unhold these crowsnest-related packages?", default_choice=True
         ):
             Logger.print_info("Installation aborted by user.")
             return False
 
-        # Unhold 所有包
-        Logger.print_status("Unholding packages...")
-        for pkg in held_packages:
+        # 只 Unhold crowsnest 需要的包
+        Logger.print_status("Unholding crowsnest-related packages...")
+        for pkg in sorted(packages_to_unhold):
             try:
                 run(
                     ["sudo", "apt-mark", "unhold", pkg],
@@ -202,7 +220,7 @@ def clear_all_held_packages() -> bool:
             except CalledProcessError as e:
                 Logger.print_warn(f"Failed to unhold {pkg}: {e}")
 
-        Logger.print_ok("All held packages have been unhold!")
+        Logger.print_ok("Crowsnest-related packages have been unhold!")
         return True
 
     except CalledProcessError as e:
@@ -221,11 +239,7 @@ def install_crowsnest_dependencies() -> bool:
     try:
         Logger.print_status("Installing crowsnest dependencies ...")
 
-        # 1. 解除 v4l-utils hold
-        if not unhold_v4l_utils():
-            Logger.print_warn("Could not unhold v4l-utils, trying to continue...")
-
-        # 2. 更新包列表（带 allow-releaseinfo-change）
+        # 1. 更新包列表（带 allow-releaseinfo-change）
         Logger.print_status("Updating package lists ...")
         run(
             ["sudo", "apt-get", "update", "--allow-releaseinfo-change"],
@@ -233,7 +247,7 @@ def install_crowsnest_dependencies() -> bool:
             stderr=PIPE,
         )
 
-        # 3. 尝试升级 held packages
+        # 2. 尝试升级 held packages
         Logger.print_status("Upgrading held packages if needed ...")
         run(
             ["sudo", "apt-get", "upgrade", "-y", "--allow-change-held-packages"],
@@ -241,7 +255,7 @@ def install_crowsnest_dependencies() -> bool:
             stderr=PIPE,
         )
 
-        # 4. 安装依赖包
+        # 3. 安装依赖包
         Logger.print_status(f"Installing {len(CROWSNEST_REQUIRED_PACKAGES)} packages ...")
         cmd = ["sudo", "apt-get", "install", "-y"] + CROWSNEST_REQUIRED_PACKAGES
 
@@ -323,12 +337,6 @@ def run_crowsnest_makefile_install() -> bool:
             check=True,
         )
         Logger.print_ok("Configuration successful!")
-
-        # Step 1.5: Clear held packages before make install
-        Logger.print_status("\nPreparing for installation...")
-        if not clear_all_held_packages():
-            Logger.print_error("Installation aborted - cannot clear held packages!")
-            return False
 
         # Step 2: make install
         Logger.print_status("Running 'sudo make install' ...")
@@ -420,6 +428,11 @@ def install_crowsnest_optimized() -> bool:
         if not fix_apt_sources_interactive():
             Logger.print_info("Crowsnest installation aborted.")
             return False
+
+    # Step 2.5: Unhold crowsnest-related packages (before any apt operations)
+    if not unhold_crowsnest_packages():
+        Logger.print_info("Crowsnest installation aborted.")
+        return False
 
     # Step 3: Clone repository (使用浅克隆优化)
     Logger.print_status("Cloning crowsnest repository ...")
