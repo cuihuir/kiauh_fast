@@ -57,7 +57,7 @@ class QuickInstallMenu(BaseMenu):
 
     def print_menu(self) -> None:
         checked = f"[{Color.apply('✓', Color.GREEN)}]"
-        unchecked = f"[{Color.apply(' ', Color.LIGHTGRAY)}]"
+        unchecked = "[ ]"
 
         o1 = checked if self.selections["klipper"] else unchecked
         o2 = checked if self.selections["moonraker"] else unchecked
