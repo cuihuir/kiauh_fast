@@ -168,7 +168,7 @@ class QuickInstallMenu(BaseMenu):
             self.previous_menu().run()
 
     def _validate_selections(self) -> bool:
-        """验证选择的有效性"""
+        """验证选择的有效性（基于依赖关系）"""
         from components.klipper.klipper import Klipper
         from components.moonraker.moonraker import Moonraker
 
@@ -181,29 +181,45 @@ class QuickInstallMenu(BaseMenu):
             )
             return False
 
-        # 检查 Klipper 是否已安装或已选择
-        klipper_instances = get_instances(Klipper)
-        klipper_installed = len(klipper_instances) > 0
+        # 检查是否安装了需要 Klipper 的组件
+        klipper_required = (
+            self.selections["moonraker"]
+            or self.selections["mainsail"]
+            or self.selections["fluidd"]
+            or self.selections["klipperscreen"]
+        )
 
-        if not klipper_installed and not self.selections["klipper"]:
-            Logger.print_error("Klipper is required! / Klipper 是必需的！")
-            Logger.print_info(
-                "Klipper is not installed. Please select Klipper (option 1). / "
-                "Klipper 未安装，请选择 Klipper（选项 1）。"
-            )
-            return False
+        # 检查是否安装了需要 Moonraker 的组件
+        moonraker_required = (
+            self.selections["mainsail"]
+            or self.selections["fluidd"]
+        )
 
-        # 检查 Moonraker 是否已安装或已选择
-        moonraker_instances = get_instances(Moonraker)
-        moonraker_installed = len(moonraker_instances) > 0
+        # 检查 Klipper 依赖
+        if klipper_required:
+            klipper_instances = get_instances(Klipper)
+            klipper_available = len(klipper_instances) > 0 or self.selections["klipper"]
 
-        if not moonraker_installed and not self.selections["moonraker"]:
-            Logger.print_error("Moonraker is required! / Moonraker 是必需的！")
-            Logger.print_info(
-                "Moonraker is not installed. Please select Moonraker (option 2). / "
-                "Moonraker 未安装，请选择 Moonraker（选项 2）。"
-            )
-            return False
+            if not klipper_available:
+                Logger.print_error("Selected components require Klipper! / 所选组件需要 Klipper！")
+                Logger.print_info(
+                    "Klipper is not installed. Please select Klipper (option 1). / "
+                    "Klipper 未安装，请选择 Klipper（选项 1）。"
+                )
+                return False
+
+        # 检查 Moonraker 依赖
+        if moonraker_required:
+            moonraker_instances = get_instances(Moonraker)
+            moonraker_available = len(moonraker_instances) > 0 or self.selections["moonraker"]
+
+            if not moonraker_available:
+                Logger.print_error("Web UI requires Moonraker! / Web 界面需要 Moonraker！")
+                Logger.print_info(
+                    "Moonraker is not installed. Please select Moonraker (option 2). / "
+                    "Moonraker 未安装，请选择 Moonraker（选项 2）。"
+                )
+                return False
 
         return True
 
