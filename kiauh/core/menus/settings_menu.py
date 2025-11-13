@@ -16,6 +16,7 @@ from components.moonraker.utils.utils import get_moonraker_status
 from core.logger import DialogType, Logger
 from core.menus import Option
 from core.menus.base_menu import BaseMenu
+from core.menus.mirror_menu import MirrorMenu
 from core.menus.repo_select_menu import RepoSelectMenu
 from core.settings.kiauh_settings import KiauhSettings
 from core.types.color import Color
@@ -55,6 +56,7 @@ class SettingsMenu(BaseMenu):
             "3": Option(method=self.toggle_mainsail_release),
             "4": Option(method=self.toggle_fluidd_release),
             "5": Option(method=self.toggle_backup_before_update),
+            "6": Option(method=self.mirror_acceleration_menu),
         }
 
     def print_menu(self) -> None:
@@ -83,6 +85,8 @@ class SettingsMenu(BaseMenu):
             ╟───────────────────────────────────────────────────────╢
             ║ Auto-Backup:                                          ║
             ║ 5) {o3} Backup before update                           ║
+            ╟───────────────────────────────────────────────────────╢
+            ║ 6) Mirror Acceleration (中国镜像加速)                   ║
             ╟───────────────────────────────────────────────────────╢
             """
         )[1:]
@@ -138,3 +142,6 @@ class SettingsMenu(BaseMenu):
         self.auto_backups_enabled = not self.auto_backups_enabled
         self.settings.kiauh.backup_before_update = self.auto_backups_enabled
         self.settings.save()
+
+    def mirror_acceleration_menu(self, **kwargs) -> None:
+        MirrorMenu(previous_menu=self.__class__).run()

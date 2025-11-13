@@ -41,6 +41,8 @@ class InvalidValueError(Exception):
 @dataclass
 class AppSettings:
     backup_before_update: bool | None = field(default=None)
+    auto_detect_china_network: bool | None = field(default=None)
+    mirror_wizard_completed: bool | None = field(default=None)
 
 
 @dataclass
@@ -68,6 +70,14 @@ class WebUiSettings:
     unstable_releases: bool | None = field(default=None)
 
 
+@dataclass
+class MirrorSettings:
+    pypi_mirror: str | None = field(default=None)
+    enable_pypi_mirror: bool | None = field(default=None)
+    apt_guide_shown: bool | None = field(default=None)
+    git_guide_shown: bool | None = field(default=None)
+
+
 # noinspection PyUnusedLocal
 # noinspection PyMethodMayBeStatic
 class KiauhSettings:
@@ -83,7 +93,7 @@ class KiauhSettings:
         return (
             f"KiauhSettings(kiauh={self.kiauh}, klipper={self.klipper},"
             f" moonraker={self.moonraker}, mainsail={self.mainsail},"
-            f" fluidd={self.fluidd})"
+            f" fluidd={self.fluidd}, mirrors={self.mirrors})"
         )
 
     def __getitem__(self, item: str) -> Any:
@@ -100,6 +110,7 @@ class KiauhSettings:
         self.moonraker = MoonrakerSettings()
         self.mainsail = WebUiSettings()
         self.fluidd = WebUiSettings()
+        self.mirrors = MirrorSettings()
 
         self.__read_config_set_internal_state()
 
@@ -154,6 +165,18 @@ class KiauhSettings:
         self.kiauh.backup_before_update = self.__read_from_cfg(
             "kiauh",
             "backup_before_update",
+            self.config.getboolean,
+            False,
+        )
+        self.kiauh.auto_detect_china_network = self.__read_from_cfg(
+            "kiauh",
+            "auto_detect_china_network",
+            self.config.getboolean,
+            True,
+        )
+        self.kiauh.mirror_wizard_completed = self.__read_from_cfg(
+            "kiauh",
+            "mirror_wizard_completed",
             self.config.getboolean,
             False,
         )
@@ -222,6 +245,36 @@ class KiauhSettings:
             "unstable_releases",
             self.config.getboolean,
             False,
+        )
+
+        # parse Mirrors options
+        self.mirrors.pypi_mirror = self.__read_from_cfg(
+            "mirrors",
+            "pypi_mirror",
+            self.config.getval,
+            "https://pypi.tuna.tsinghua.edu.cn/simple",
+            True,
+        )
+        self.mirrors.enable_pypi_mirror = self.__read_from_cfg(
+            "mirrors",
+            "enable_pypi_mirror",
+            self.config.getboolean,
+            False,
+            True,
+        )
+        self.mirrors.apt_guide_shown = self.__read_from_cfg(
+            "mirrors",
+            "apt_guide_shown",
+            self.config.getboolean,
+            False,
+            True,
+        )
+        self.mirrors.git_guide_shown = self.__read_from_cfg(
+            "mirrors",
+            "git_guide_shown",
+            self.config.getboolean,
+            False,
+            True,
         )
 
     def __check_option_exists(
@@ -299,6 +352,18 @@ class KiauhSettings:
                 "backup_before_update",
                 str(self.kiauh.backup_before_update),
             )
+        if self.kiauh.auto_detect_china_network is not None:
+            self.config.set_option(
+                "kiauh",
+                "auto_detect_china_network",
+                str(self.kiauh.auto_detect_china_network),
+            )
+        if self.kiauh.mirror_wizard_completed is not None:
+            self.config.set_option(
+                "kiauh",
+                "mirror_wizard_completed",
+                str(self.kiauh.mirror_wizard_completed),
+            )
 
         # Handle repositories
         if self.klipper.repositories is not None:
@@ -327,6 +392,22 @@ class KiauhSettings:
         if self.fluidd.unstable_releases is not None:
             self.config.set_option(
                 "fluidd", "unstable_releases", str(self.fluidd.unstable_releases)
+            )
+
+        # Handle Mirrors settings
+        if self.mirrors.pypi_mirror is not None:
+            self.config.set_option("mirrors", "pypi_mirror", str(self.mirrors.pypi_mirror))
+        if self.mirrors.enable_pypi_mirror is not None:
+            self.config.set_option(
+                "mirrors", "enable_pypi_mirror", str(self.mirrors.enable_pypi_mirror)
+            )
+        if self.mirrors.apt_guide_shown is not None:
+            self.config.set_option(
+                "mirrors", "apt_guide_shown", str(self.mirrors.apt_guide_shown)
+            )
+        if self.mirrors.git_guide_shown is not None:
+            self.config.set_option(
+                "mirrors", "git_guide_shown", str(self.mirrors.git_guide_shown)
             )
 
         self.config.write_file(CUSTOM_CFG)
