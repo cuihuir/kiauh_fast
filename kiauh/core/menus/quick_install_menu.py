@@ -286,19 +286,25 @@ class QuickInstallMenu(BaseMenu):
 
     def _install_klipper(self) -> None:
         """安装 Klipper"""
-        from components.klipper.klipper import install_klipper
+        from components.klipper.services.klipper_setup_service import (
+            KlipperSetupService,
+        )
 
-        install_klipper()
+        klsvc = KlipperSetupService()
+        klsvc.install()
 
     def _install_moonraker(self) -> None:
         """安装 Moonraker"""
-        from components.moonraker.moonraker import install_moonraker
+        from components.moonraker.services.moonraker_setup_service import (
+            MoonrakerSetupService,
+        )
 
-        install_moonraker()
+        mrsvc = MoonrakerSetupService()
+        mrsvc.install()
 
     def _install_mainsail(self, port: int = 80) -> None:
         """安装 Mainsail"""
-        from components.webui_client.client_setup_service import install_client
+        from components.webui_client.client_setup import install_client
         from components.webui_client.mainsail_data import MainsailData
 
         # 临时设置端口
@@ -318,7 +324,7 @@ class QuickInstallMenu(BaseMenu):
 
     def _install_fluidd(self, port: int = 81) -> None:
         """安装 Fluidd"""
-        from components.webui_client.client_setup_service import install_client
+        from components.webui_client.client_setup import install_client
         from components.webui_client.fluidd_data import FluiddData
 
         # 临时设置端口
