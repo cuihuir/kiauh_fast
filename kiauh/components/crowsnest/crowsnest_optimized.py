@@ -303,7 +303,6 @@ def install_crowsnest_optimized() -> bool:
             CROWSNEST_REPO,
             CROWSNEST_DIR,
             "master",
-            depth=1,  # 浅克隆节省空间和时间
         )
     except Exception as e:
         Logger.print_error(f"Failed to clone repository: {e}")
