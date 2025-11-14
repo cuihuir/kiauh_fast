@@ -137,7 +137,7 @@ def install_client(
             center_content=True,
             content=[f"{client.display_name} installation failed!"],
         )
-        return
+        raise  # 重新抛出异常，让上层调用者知道安装失败
 
     # noinspection HttpUrlsUsage
     Logger.print_dialog(
