@@ -9,7 +9,9 @@
 """Quick Install Menu - One-click Klipper Stack Installation"""
 from __future__ import annotations
 
+import sys
 import textwrap
+import traceback
 from typing import Type, List, Dict
 
 from core.menus import FooterType
@@ -53,6 +55,8 @@ class QuickInstallMenu(BaseMenu):
             "4": Option(method=self.toggle_fluidd),
             "5": Option(method=self.toggle_klipperscreen),
             "6": Option(method=self.toggle_crowsnest),
+            "a": Option(method=self.select_all),
+            "c": Option(method=self.clear_all),
             "s": Option(method=self.start_installation),
         }
 
@@ -91,6 +95,10 @@ class QuickInstallMenu(BaseMenu):
             ║ 5) {o5} KlipperScreen   (Touch UI, requires reboot)  ║
             ║ 6) {o6} Crowsnest       (Camera streaming)           ║
             ╟───────────────────────────────────────────────────────╢
+            ║ Tip: Enter multiple numbers (e.g., 135 or 1 3 5)    ║
+            ║ 提示: 可输入多个数字 (如 135 或 1 3 5)                 ║
+            ║                                                       ║
+            ║ A) Select All / 全选    C) Clear All / 清空          ║
             ║ S) Start Installation / 开始安装                       ║
             ╟───────────────────────────────────────────────────────╢
             """
@@ -114,6 +122,16 @@ class QuickInstallMenu(BaseMenu):
 
     def toggle_crowsnest(self, **kwargs) -> None:
         self.selections["crowsnest"] = not self.selections["crowsnest"]
+
+    def select_all(self, **kwargs) -> None:
+        """全选所有组件"""
+        for key in self.selections:
+            self.selections[key] = True
+
+    def clear_all(self, **kwargs) -> None:
+        """清空所有选择"""
+        for key in self.selections:
+            self.selections[key] = False
 
     def start_installation(self, **kwargs) -> None:
         """开始一键安装"""
@@ -411,3 +429,67 @@ class QuickInstallMenu(BaseMenu):
             from components.crowsnest.crowsnest import install_crowsnest
 
             install_crowsnest()
+
+    def run(self) -> None:
+        """重写 run 方法以支持批量输入"""
+        try:
+            clear()
+            from core.menus.base_menu import print_header
+            print_header()
+            self.print_menu()
+            from core.menus.base_menu import print_back_footer
+            print_back_footer()
+
+            # 获取用户输入
+            user_input = get_selection_input(self.input_label_txt, self.options)
+            user_input = user_input.lower().strip()
+
+            # 处理批量输入（如 "135" 或 "1 3 5"）
+            if user_input and user_input not in ["a", "c", "s", "b"]:
+                # 移除空格，得到纯数字字符串
+                numbers = user_input.replace(" ", "")
+
+                # 检查是否全是有效数字
+                valid_numbers = set("123456")
+                if all(c in valid_numbers for c in numbers):
+                    # 批量切换
+                    toggle_methods = {
+                        "1": self.toggle_klipper,
+                        "2": self.toggle_moonraker,
+                        "3": self.toggle_mainsail,
+                        "4": self.toggle_fluidd,
+                        "5": self.toggle_klipperscreen,
+                        "6": self.toggle_crowsnest,
+                    }
+
+                    for num in numbers:
+                        if num in toggle_methods:
+                            toggle_methods[num]()
+
+                    # 递归调用，重新显示菜单
+                    self.run()
+                    return
+
+            # 单个选项处理
+            if user_input in self.options:
+                selected_option: Option = self.options.get(user_input)
+                selected_option.method(
+                    opt_index=selected_option.opt_index,
+                    opt_data=selected_option.opt_data,
+                )
+
+            # 递归调用，重新显示菜单
+            self.run()
+
+        except KeyboardInterrupt:
+            Logger.print_warn("\n\nOperation cancelled by user (Ctrl-C).")
+            Logger.print_info("Returning to previous menu...")
+            if self.previous_menu:
+                self.previous_menu().run()
+            else:
+                sys.exit(0)
+
+        except Exception as e:
+            Logger.print_error(
+                f"An unexpected error occured:\n{e}\n{traceback.format_exc()}"
+            )
