@@ -76,7 +76,8 @@ def install_klipperscreen() -> None:
         ):
             return
 
-    check_install_dependencies()
+    # 注意：不调用 check_install_dependencies()
+    # 因为 install_klipperscreen_optimized() 会动态解析官方脚本的依赖
 
     git_clone_wrapper(KLIPPERSCREEN_REPO, KLIPPERSCREEN_DIR)
 
@@ -209,15 +210,122 @@ def backup_klipperscreen_dir() -> None:
     )
 
 
+def parse_install_script_dependencies() -> dict:
+    """
+    动态解析官方 install.sh，提取 apt 依赖
+    这样即使官方更新脚本，我们也能自动适配
+
+    Returns:
+        dict: {
+            'XSERVER': ['xinit', 'xinput', ...],
+            'PYGOBJECT': ['libgirepository1.0-dev', ...],
+            'MISC': [...],
+            'OPTIONAL': [...]
+        }
+    """
+    import re
+
+    script_path = KLIPPERSCREEN_INSTALL_SCRIPT
+    if not script_path.exists():
+        Logger.print_warn(f"Install script not found: {script_path}")
+        return {}
+
+    script_content = script_path.read_text()
+    dependencies = {}
+
+    # 解析 bash 变量定义（如 PYGOBJECT="pkg1 pkg2 pkg3"）
+    # 匹配模式：VARIABLE="package1 package2 ..."
+    pattern = r'^(\w+)="([^"]+)"'
+
+    for line in script_content.splitlines():
+        line = line.strip()
+        match = re.match(pattern, line)
+        if match:
+            var_name = match.group(1)
+            packages = match.group(2)
+            # 只提取依赖相关的变量
+            if var_name in ['XSERVER', 'CAGE', 'PYGOBJECT', 'MISC', 'OPTIONAL']:
+                dependencies[var_name] = packages.split()
+
+    total_packages = sum(len(pkgs) for pkgs in dependencies.values())
+    Logger.print_info(f"Parsed {len(dependencies)} dependency groups, {total_packages} total packages")
+
+    # 显示详细信息（调试用）
+    for group, packages in dependencies.items():
+        Logger.print_info(f"  {group}: {len(packages)} packages")
+
+    return dependencies
+
+
 def install_klipperscreen_optimized() -> None:
     """
     优化的 KlipperScreen 安装（使用 uv 加速）
-    替代官方 KlipperScreen-install.sh 中的 Python 环境部分
+    策略：
+    1. 动态解析官方 install.sh，提取 apt 依赖（自动适配更新）
+    2. 安装 apt 依赖（使用官方的依赖列表）
+    3. 替换 Python venv/pip 部分用 uv（10-100x 加速）
     """
     import os
     import getpass
 
     username = getpass.getuser()
+
+    # 0. 动态解析官方脚本的依赖
+    Logger.print_status("Parsing official KlipperScreen-install.sh for dependencies ...")
+    deps = parse_install_script_dependencies()
+
+    if not deps:
+        Logger.print_warn("Failed to parse dependencies, using fallback list")
+
+    # 0.1 安装动态解析的 apt 依赖
+    Logger.print_status("Installing system dependencies from official script ...")
+
+    # 合并所有必需的包（PYGOBJECT 和 MISC 是必需的，XSERVER 用于图形后端）
+    required_packages = []
+
+    if deps:
+        # 从解析的依赖中提取
+        required_packages.extend(deps.get('PYGOBJECT', []))
+        required_packages.extend(deps.get('MISC', []))
+        required_packages.extend(deps.get('XSERVER', []))  # 默认使用 Xserver
+        # OPTIONAL 包是可选的，可以尝试安装但不强制
+        optional_packages = deps.get('OPTIONAL', [])
+    else:
+        # Fallback：硬编码的最小依赖集（以防解析失败）
+        required_packages = [
+            "libgirepository1.0-dev", "gcc", "libcairo2-dev", "pkg-config",
+            "python3-dev", "gir1.2-gtk-3.0", "librsvg2-common", "libopenjp2-7",
+            "libdbus-glib-1-dev", "autoconf", "python3-venv",
+            "xinit", "xinput", "x11-xserver-utils", "xserver-xorg-input-evdev",
+            "xserver-xorg-input-libinput", "xserver-xorg-legacy",
+            "xserver-xorg-video-fbdev",
+        ]
+        optional_packages = ["fonts-nanum", "fonts-ipafont", "libmpv-dev"]
+
+    # 安装必需的包
+    if required_packages:
+        Logger.print_info(f"Installing {len(required_packages)} required packages ...")
+        try:
+            # 更新包列表
+            run(["sudo", "apt-get", "update"], check=True, capture_output=True)
+
+            # 安装必需包
+            cmd = ["sudo", "apt-get", "install", "-y"] + required_packages
+            run(cmd, check=True)
+            Logger.print_ok("Required packages installed")
+        except CalledProcessError as e:
+            Logger.print_error(f"Failed to install required packages: {e}")
+            raise
+
+    # 安装可选包（不强制）
+    if optional_packages:
+        Logger.print_info(f"Installing {len(optional_packages)} optional packages ...")
+        try:
+            cmd = ["sudo", "apt-get", "install", "-y"] + optional_packages
+            run(cmd, check=False)  # 不强制，失败也继续
+            Logger.print_ok("Optional packages installed")
+        except:
+            Logger.print_warn("Some optional packages failed to install (continuing)")
 
     # 1. 创建 Python 虚拟环境（使用 uv venv，10-100x 更快）
     Logger.print_status("Set up Python virtual environment ...")
@@ -250,8 +358,25 @@ def install_klipperscreen_optimized() -> None:
     service_content = service_content.replace("KS_DIR", str(KLIPPERSCREEN_DIR))
     service_content = service_content.replace("KS_BACKEND", "X")  # 默认使用 Xserver
 
-    # 写入 systemd 服务文件
-    KLIPPERSCREEN_SERVICE_FILE.write_text(service_content)
+    # 写入 systemd 服务文件（需要 sudo）
+    try:
+        # 先写入临时文件
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.service') as tmp:
+            tmp.write(service_content)
+            tmp_path = tmp.name
+
+        # 用 sudo mv 移动到 systemd 目录
+        run([
+            "sudo", "mv",
+            tmp_path,
+            str(KLIPPERSCREEN_SERVICE_FILE)
+        ], check=True)
+
+        Logger.print_ok("Service file installed")
+    except CalledProcessError as e:
+        Logger.print_error(f"Failed to install service file: {e}")
+        raise
 
     # 启用服务
     try:
@@ -260,7 +385,7 @@ def install_klipperscreen_optimized() -> None:
         run(["sudo", "systemctl", "enable", "KlipperScreen"], check=True)
         run(["sudo", "systemctl", "set-default", "multi-user.target"], check=True)
         run(["sudo", "adduser", username, "tty"], check=False)  # 可能已经在组里
-        Logger.print_ok("KlipperScreen service installed")
+        Logger.print_ok("KlipperScreen service configured")
     except CalledProcessError as e:
         Logger.print_error(f"Failed to configure systemd service: {e}")
         raise
