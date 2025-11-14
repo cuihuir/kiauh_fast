@@ -140,12 +140,30 @@ def symlink_webui_nginx_log(
     error_log = client.nginx_error_log
 
     for instance in klipper_instances:
+        # 处理 access log 符号链接
         desti_access = instance.base.log_dir.joinpath(access_log.name)
-        if not desti_access.exists():
+        if desti_access.is_symlink():
+            # 已存在符号链接，删除并重建
+            desti_access.unlink()
+            desti_access.symlink_to(access_log)
+        elif desti_access.exists():
+            # 存在但不是符号链接（可能是实际文件），警告并跳过
+            Logger.print_warn(f"Log file already exists (not a symlink): {desti_access}")
+        else:
+            # 不存在，创建符号链接
             desti_access.symlink_to(access_log)
 
+        # 处理 error log 符号链接
         desti_error = instance.base.log_dir.joinpath(error_log.name)
-        if not desti_error.exists():
+        if desti_error.is_symlink():
+            # 已存在符号链接，删除并重建
+            desti_error.unlink()
+            desti_error.symlink_to(error_log)
+        elif desti_error.exists():
+            # 存在但不是符号链接（可能是实际文件），警告并跳过
+            Logger.print_warn(f"Log file already exists (not a symlink): {desti_error}")
+        else:
+            # 不存在，创建符号链接
             desti_error.symlink_to(error_log)
 
 
