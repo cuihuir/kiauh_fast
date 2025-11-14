@@ -24,7 +24,6 @@ from components.crowsnest import (
 )
 from components.klipper.klipper import Klipper
 from core.logger import DialogType, Logger
-from core.spinner import Spinner
 from utils.git_utils import git_clone_wrapper
 from utils.input_utils import get_confirm
 from utils.instance_utils import get_instances
@@ -343,28 +342,20 @@ def run_crowsnest_makefile_install() -> bool:
         # Step 2: make install
         Logger.print_status("Running 'sudo make install' ...")
         Logger.print_info("This may take 5-10 minutes (compiling ustreamer)...")
-        Logger.print_info("Tip: Open another terminal and run 'top' to see compilation progress")
+        Logger.print_info("Showing compilation output (you can see progress):")
+        print()  # 空行
 
-        # 使用 Popen 后台运行，显示 Spinner
-        spinner = Spinner(message="Installing crowsnest (compiling ustreamer)")
-        spinner.start()
+        # 直接运行，显示实时输出（不用 Spinner）
+        result = run(
+            ["sudo", "make", "install"],
+            cwd=CROWSNEST_DIR,
+            check=False,  # 不自动抛异常，手动检查
+        )
+        returncode = result.returncode
+        stdout = ""
+        stderr = ""
 
-        try:
-            process = Popen(
-                ["sudo", "make", "install"],
-                cwd=CROWSNEST_DIR,
-                stdout=PIPE,
-                stderr=PIPE,
-                text=True,
-            )
-
-            # 等待进程完成
-            stdout, stderr = process.communicate()
-            returncode = process.returncode
-
-        finally:
-            spinner.stop()
-
+        print()  # 空行
         if returncode != 0:
             Logger.print_error("Installation failed!")
             if stderr:
