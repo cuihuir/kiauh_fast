@@ -45,6 +45,7 @@ from utils.instance_utils import get_instances
 from utils.sys_utils import (
     check_python_version,
     cmd_sysctl_service,
+    create_python_venv,
     install_python_requirements,
     remove_system_service,
 )
@@ -79,8 +80,9 @@ def install_klipperscreen() -> None:
 
     git_clone_wrapper(KLIPPERSCREEN_REPO, KLIPPERSCREEN_DIR)
 
+    # 使用我们自己的安装逻辑（支持 uv）而不是官方脚本
     try:
-        run(KLIPPERSCREEN_INSTALL_SCRIPT.as_posix(), shell=True, check=True)
+        install_klipperscreen_optimized()
         if mr_instances:
             patch_klipperscreen_update_manager(mr_instances)
             InstanceManager.restart_all(mr_instances)
@@ -205,3 +207,116 @@ def backup_klipperscreen_dir() -> None:
         backup_name="KlipperScreen-env",
         target_path="KlipperScreen",
     )
+
+
+def install_klipperscreen_optimized() -> None:
+    """
+    优化的 KlipperScreen 安装（使用 uv 加速）
+    替代官方 KlipperScreen-install.sh 中的 Python 环境部分
+    """
+    import os
+    import getpass
+
+    username = getpass.getuser()
+
+    # 1. 创建 Python 虚拟环境（使用 uv venv，10-100x 更快）
+    Logger.print_status("Set up Python virtual environment ...")
+    if not create_python_venv(
+        target=KLIPPERSCREEN_ENV_DIR,
+        force=True,  # 覆盖已存在的 venv
+    ):
+        raise RuntimeError("Failed to create virtual environment")
+
+    # 2. 安装 Python requirements（使用 uv pip，10-100x 更快）
+    Logger.print_status("Installing Python requirements ...")
+    install_python_requirements(
+        target=KLIPPERSCREEN_ENV_DIR,
+        requirements=KLIPPERSCREEN_REQ_FILE,
+    )
+
+    # 3. 安装 systemd 服务
+    Logger.print_status("Installing KlipperScreen systemd service ...")
+
+    # 读取服务模板
+    service_template_path = KLIPPERSCREEN_DIR / "scripts" / "KlipperScreen.service"
+    if not service_template_path.exists():
+        raise RuntimeError(f"Service template not found: {service_template_path}")
+
+    service_content = service_template_path.read_text()
+
+    # 替换占位符
+    service_content = service_content.replace("KS_USER", username)
+    service_content = service_content.replace("KS_ENV", str(KLIPPERSCREEN_ENV_DIR))
+    service_content = service_content.replace("KS_DIR", str(KLIPPERSCREEN_DIR))
+    service_content = service_content.replace("KS_BACKEND", "X")  # 默认使用 Xserver
+
+    # 写入 systemd 服务文件
+    KLIPPERSCREEN_SERVICE_FILE.write_text(service_content)
+
+    # 启用服务
+    try:
+        run(["sudo", "systemctl", "unmask", "KlipperScreen.service"], check=True)
+        run(["sudo", "systemctl", "daemon-reload"], check=True)
+        run(["sudo", "systemctl", "enable", "KlipperScreen"], check=True)
+        run(["sudo", "systemctl", "set-default", "multi-user.target"], check=True)
+        run(["sudo", "adduser", username, "tty"], check=False)  # 可能已经在组里
+        Logger.print_ok("KlipperScreen service installed")
+    except CalledProcessError as e:
+        Logger.print_error(f"Failed to configure systemd service: {e}")
+        raise
+
+    # 4. 配置 PolicyKit rules
+    Logger.print_status("Configuring PolicyKit rules ...")
+    try:
+        # 添加用户到组
+        run(["sudo", "groupadd", "-f", "klipperscreen"], check=False)
+        run(["sudo", "groupadd", "-f", "network"], check=False)
+        run(["sudo", "adduser", username, "netdev"], check=False)
+        run(["sudo", "adduser", username, "network"], check=False)
+
+        # 检查 PolicyKit 版本并安装规则
+        try:
+            version_output = run(
+                ["pkaction", "--version"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            Logger.print_ok("PolicyKit configured")
+        except:
+            Logger.print_warn("PolicyKit not found, skipping rules configuration")
+    except CalledProcessError as e:
+        Logger.print_warn(f"PolicyKit configuration warning: {e}")
+
+    # 5. 添加桌面文件
+    Logger.print_status("Adding desktop entry ...")
+    try:
+        desktop_dir = Path.home() / ".local" / "share" / "applications"
+        desktop_dir.mkdir(parents=True, exist_ok=True)
+
+        desktop_file = KLIPPERSCREEN_DIR / "scripts" / "KlipperScreen.desktop"
+        if desktop_file.exists():
+            shutil.copy(desktop_file, desktop_dir / "KlipperScreen.desktop")
+
+        icon_file = KLIPPERSCREEN_DIR / "styles" / "icon.svg"
+        if icon_file.exists():
+            run([
+                "sudo", "cp",
+                str(icon_file),
+                "/usr/share/icons/hicolor/scalable/apps/KlipperScreen.svg"
+            ], check=False)
+
+        Logger.print_ok("Desktop entry added")
+    except Exception as e:
+        Logger.print_warn(f"Desktop entry warning: {e}")
+
+    # 6. 启动服务
+    Logger.print_status("Starting KlipperScreen service ...")
+    try:
+        run(["sudo", "systemctl", "restart", "KlipperScreen"], check=True)
+        Logger.print_ok("KlipperScreen service started")
+    except CalledProcessError as e:
+        Logger.print_warn(f"Failed to start service (will start on next reboot): {e}")
+
+    Logger.print_ok("KlipperScreen installation completed!")
+    Logger.print_info("\nNote: A system reboot may be required for KlipperScreen to work properly.")
