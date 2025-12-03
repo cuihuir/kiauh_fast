@@ -75,7 +75,7 @@ def install_client_config(client_data: BaseWebClient, cfg_backup=True) -> None:
 
     except Exception as e:
         Logger.print_error(f"{display_name} installation failed!\n{e}")
-        return
+        raise  # 重新抛出异常，让上层知道安装失败
 
     Logger.print_ok(f"{display_name} installation complete!", start="\n")
 

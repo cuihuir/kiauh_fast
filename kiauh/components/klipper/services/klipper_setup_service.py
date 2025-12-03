@@ -143,7 +143,7 @@ class KlipperSetupService:
         except Exception as e:
             Logger.print_error(e)
             Logger.print_error("Klipper installation failed!")
-            return
+            raise  # 重新抛出异常，让上层知道安装失败
 
     def update(self) -> None:
         Logger.print_dialog(
