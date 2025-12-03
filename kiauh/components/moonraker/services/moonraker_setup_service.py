@@ -160,7 +160,7 @@ class MoonrakerSetupService:
             self.__run_setup(new_instances, create_example_cfg)
         except Exception as e:
             Logger.print_error(f"Error while installing Moonraker: {e}")
-            return
+            raise  # 重新抛出异常，让上层知道安装失败
 
     def update(self) -> None:
         Logger.print_dialog(

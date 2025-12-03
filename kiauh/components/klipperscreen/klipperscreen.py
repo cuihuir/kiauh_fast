@@ -95,7 +95,10 @@ def install_klipperscreen() -> None:
         Logger.print_ok("KlipperScreen successfully installed!")
     except CalledProcessError as e:
         Logger.print_error(f"Error installing KlipperScreen:\n{e}")
-        return
+        raise  # 重新抛出异常，让上层知道安装失败
+    except Exception as e:
+        Logger.print_error(f"Error installing KlipperScreen:\n{e}")
+        raise  # 重新抛出异常，让上层知道安装失败
 
 
 def patch_klipperscreen_update_manager(instances: List[Moonraker]) -> None:
