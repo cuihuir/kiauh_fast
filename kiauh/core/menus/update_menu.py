@@ -312,6 +312,27 @@ class UpdateMenu(BaseMenu):
 
         update_fn(*args)
 
+        self._refresh_component_status(name)
+
+    def _refresh_component_status(self, name: str) -> None:
+        """Refresh the status data for a component after an update."""
+        if name == "klipper":
+            self._set_status_data("klipper", get_klipper_status)
+        elif name == "moonraker":
+            self._set_status_data("moonraker", get_moonraker_status)
+        elif name == "mainsail":
+            self._set_status_data("mainsail", get_client_status, self.mainsail_data, True)
+        elif name == "mainsail_config":
+            self._set_status_data("mainsail_config", get_client_config_status, self.mainsail_data)
+        elif name == "fluidd":
+            self._set_status_data("fluidd", get_client_status, self.fluidd_data, True)
+        elif name == "fluidd_config":
+            self._set_status_data("fluidd_config", get_client_config_status, self.fluidd_data)
+        elif name == "klipperscreen":
+            self._set_status_data("klipperscreen", get_klipperscreen_status)
+        elif name == "crowsnest":
+            self._set_status_data("crowsnest", get_crowsnest_status)
+
     def _run_system_updates(self) -> None:
         if not self.packages:
             Logger.print_info("No system upgrades available!")
