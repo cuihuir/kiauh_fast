@@ -170,6 +170,7 @@ def symlink_webui_nginx_log(
 def get_local_client_version(client: BaseWebClient) -> str | None:
     relinfo_file = client.client_dir.joinpath("release_info.json")
     version_file = client.client_dir.joinpath(".version")
+    default = "-"
 
     if not client.client_dir.exists():
         return None

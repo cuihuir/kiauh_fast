@@ -257,14 +257,14 @@ class UpdateMenu(BaseMenu):
 
     def _format_local_status(self, local_version, remote_version) -> str:
         color = Color.RED
-        if local_version is None:
+        if not local_version or local_version == '-':
             color = Color.RED
         elif local_version == remote_version:
             color = Color.GREEN
         elif local_version != remote_version:
             color = Color.YELLOW
 
-        return Color.apply(local_version or "-", color)
+        return str(Color.apply(local_version or '-', color))
 
     def _set_status_data(self, name: str, status_fn: Callable, *args) -> None:
         comp_status: ComponentStatus = status_fn(*args)
