@@ -108,7 +108,7 @@ def get_install_status(
     from utils.instance_utils import get_instances
 
     checks = []
-    branch: str = ""
+    branch: str | None = None
 
     if repo_dir.exists():
         checks.append(True)

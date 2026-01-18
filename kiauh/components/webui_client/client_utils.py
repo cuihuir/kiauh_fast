@@ -170,10 +170,9 @@ def symlink_webui_nginx_log(
 def get_local_client_version(client: BaseWebClient) -> str | None:
     relinfo_file = client.client_dir.joinpath("release_info.json")
     version_file = client.client_dir.joinpath(".version")
-    default = "n/a"
 
     if not client.client_dir.exists():
-        return default
+        return None
 
     # try to get version from release_info.json first
     if relinfo_file.is_file():
@@ -195,11 +194,11 @@ def get_local_client_version(client: BaseWebClient) -> str | None:
         try:
             with open(version_file, "r") as f:
                 line = f.readline().strip()
-            return line or default
+            return line or None
         except OSError:
             Logger.print_error("Unable to read '.version'")
 
-    return default
+    return None
 
 
 def get_remote_client_version(client: BaseWebClient) -> str | None:
