@@ -22,6 +22,7 @@ from utils.instance_utils import get_instances
 class BackupService:
     def __init__(self):
         self._backup_root = Path.home().joinpath("kiauh_backups")
+        self._timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     @property
     def backup_root(self) -> Path:
@@ -29,7 +30,7 @@ class BackupService:
 
     @property
     def timestamp(self) -> str:
-        return datetime.now().strftime("%Y%m%d-%H%M%S")
+        return self._timestamp
 
     ################################################
     # GENERIC BACKUP METHODS
@@ -68,7 +69,12 @@ class BackupService:
                 backup_dir = self._backup_root.joinpath(target_path)
 
             backup_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source_path, backup_dir.joinpath(filename))
+            target_path = backup_dir.joinpath(filename)
+            if target_path.exists():
+                Logger.print_info(f"File '{target_path}' already exists. Skipping ...")
+                return True
+
+            shutil.copy2(source_path, target_path)
 
             Logger.print_ok(
                 f"Successfully backed up '{source_path}' to '{backup_dir}'"
@@ -111,14 +117,25 @@ class BackupService:
 
             if backup_path.exists():
                 Logger.print_info(f"Reusing existing backup directory '{backup_path}'")
-
-            shutil.copytree(
-                source_path,
-                backup_path,
-                dirs_exist_ok=True,
-                symlinks=True,
-                ignore_dangling_symlinks=True,
-            )
+                for item in source_path.rglob("*"):
+                    relative_path = item.relative_to(source_path)
+                    target_item = backup_path.joinpath(relative_path)
+                    if item.is_file():
+                        if not target_item.exists():
+                            target_item.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(item, target_item)
+                        else:
+                            Logger.print_info(f"File '{target_item}' already exists. Skipping...")
+                    elif item.is_dir():
+                        target_item.mkdir(parents=True, exist_ok=True)
+            else:
+                shutil.copytree(
+                    source_path,
+                    backup_path,
+                    dirs_exist_ok=True,
+                    symlinks=True,
+                    ignore_dangling_symlinks=True,
+                )
 
             Logger.print_ok(
                 f"Successfully backed up '{source_path}' to '{backup_path}'"
