@@ -263,8 +263,10 @@ def install_crowsnest_dependencies() -> bool:
 
         # 4. 安装依赖包
         Logger.print_status(f"Installing {len(CROWSNEST_REQUIRED_PACKAGES)} packages ...")
-        cmd = ["sudo", "-E", "apt-get", "install", "-y"] + CROWSNEST_REQUIRED_PACKAGES
         env = {**__import__("os").environ, "DEBIAN_FRONTEND": "noninteractive"}
+        cmd = ["sudo", "bash", "-c",
+               "DEBIAN_FRONTEND=noninteractive apt-get install -y "
+               + " ".join(CROWSNEST_REQUIRED_PACKAGES)]
         result = run(cmd, capture_output=True, text=True, env=env)
 
         if result.returncode != 0:
@@ -275,11 +277,11 @@ def install_crowsnest_dependencies() -> bool:
             for pkg in CROWSNEST_REQUIRED_PACKAGES:
                 try:
                     run(
-                        ["sudo", "-E", "apt-get", "install", "-y", pkg],
+                        ["sudo", "bash", "-c",
+                         f"DEBIAN_FRONTEND=noninteractive apt-get install -y {pkg}"],
                         check=True,
                         stderr=DEVNULL,
                         stdout=DEVNULL,
-                        env=env,
                     )
                     Logger.print_ok(f"Installed: {pkg}")
                 except CalledProcessError:
