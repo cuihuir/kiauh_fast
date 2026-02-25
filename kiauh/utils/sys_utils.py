@@ -160,7 +160,7 @@ def install_uv() -> bool:
             timeout=5,
         )
         pip_available = pip_check.returncode == 0
-    except:
+    except Exception:
         pip_available = False
 
     if not pip_available:
@@ -277,7 +277,7 @@ def get_uv_binary() -> str:
         result = run(["which", "uv"], capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout.strip()
-    except:
+    except Exception:
         pass
 
     return "uv"  # 默认假设在 PATH 中
@@ -444,7 +444,7 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                                         standard_packages.append(fixed_line)
                                         found = True
                                         break
-                                except:
+                                except Exception:
                                     pass
 
                             if found:
@@ -479,7 +479,7 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                                 if resolved.exists() and resolved.is_dir():
                                     is_local_path = True
                                     break
-                            except:
+                            except Exception:
                                 pass
 
                 if is_local_path:

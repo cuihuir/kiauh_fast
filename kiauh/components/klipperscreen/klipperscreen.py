@@ -31,7 +31,6 @@ from core.services.backup_service import BackupService
 from core.settings.kiauh_settings import KiauhSettings
 from core.types.component_status import ComponentStatus
 from utils.common import (
-    check_install_dependencies,
     get_install_status,
 )
 from utils.config_utils import add_config_section, remove_config_section
@@ -268,7 +267,6 @@ def install_klipperscreen_optimized() -> None:
     2. 安装 apt 依赖（使用官方的依赖列表）
     3. 替换 Python venv/pip 部分用 uv（10-100x 加速）
     """
-    import os
     import getpass
 
     username = getpass.getuser()
@@ -484,7 +482,7 @@ ResultAny=yes
                         ["getent", "group", "klipperscreen"],
                         capture_output=True, text=True
                     )
-                    ks_gid = ks_gid_result.stdout.split(":")[2] if ks_gid_result.returncode == 0 else "0"
+                    _ = ks_gid_result.stdout.split(":")[2] if ks_gid_result.returncode == 0 else "0"
                     rules_content = f"""polkit.addRule(function(action, subject) {{
     if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 && subject.isInGroup("network")) {{
         return polkit.Result.YES;
