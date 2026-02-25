@@ -12,13 +12,12 @@ from __future__ import annotations
 import sys
 import textwrap
 import traceback
-from typing import Type, List, Dict
+from typing import Dict, Type
 
+from core.logger import DialogType, Logger
 from core.menus import FooterType
 from core.menus.base_menu import BaseMenu, Option, clear
-from core.logger import Logger, DialogType
 from core.types.color import Color
-from utils.input_utils import get_selection_input
 from utils.instance_utils import get_instances
 
 
@@ -61,8 +60,13 @@ class QuickInstallMenu(BaseMenu):
         }
 
     def print_menu(self) -> None:
+        from components.crowsnest.crowsnest import get_crowsnest_status
         from components.klipper.klipper import Klipper
+        from components.klipperscreen.klipperscreen import get_klipperscreen_status
         from components.moonraker.moonraker import Moonraker
+        from components.webui_client.client_utils import get_client_status
+        from components.webui_client.fluidd_data import FluiddData
+        from components.webui_client.mainsail_data import MainsailData
 
         checked = f"[{Color.apply('✓', Color.GREEN)}]"
         unchecked = "[ ]"
@@ -70,6 +74,10 @@ class QuickInstallMenu(BaseMenu):
         # 检查安装状态
         klipper_installed = len(get_instances(Klipper)) > 0
         moonraker_installed = len(get_instances(Moonraker)) > 0
+        mainsail_installed = get_client_status(MainsailData()).status == 2
+        fluidd_installed = get_client_status(FluiddData()).status == 2
+        ks_installed = get_klipperscreen_status().status == 2
+        cn_installed = get_crowsnest_status().status == 2
 
         o1 = checked if self.selections["klipper"] else unchecked
         o2 = checked if self.selections["moonraker"] else unchecked
@@ -78,9 +86,13 @@ class QuickInstallMenu(BaseMenu):
         o5 = checked if self.selections["klipperscreen"] else unchecked
         o6 = checked if self.selections["crowsnest"] else unchecked
 
-        # 安装状态标记（简短版本）
+        # 安装状态标记
         k_installed = Color.apply(" ✓已装", Color.CYAN) if klipper_installed else ""
         m_installed = Color.apply(" ✓已装", Color.CYAN) if moonraker_installed else ""
+        ms_installed = Color.apply(" ✓已装", Color.CYAN) if mainsail_installed else ""
+        fl_installed = Color.apply(" ✓已装", Color.CYAN) if fluidd_installed else ""
+        ks_installed_txt = Color.apply(" ✓已装", Color.CYAN) if ks_installed else ""
+        cn_installed_txt = Color.apply(" ✓已装", Color.CYAN) if cn_installed else ""
 
         menu = textwrap.dedent(
             f"""
@@ -90,10 +102,10 @@ class QuickInstallMenu(BaseMenu):
             ╟───────────────────────────────────────────────────────╢
             ║ 1) {o1} Klipper         (Required / 必需){k_installed}
             ║ 2) {o2} Moonraker       (Required / 必需){m_installed}
-            ║ 3) {o3} Mainsail        (Web UI)                      ║
-            ║ 4) {o4} Fluidd          (Web UI)                      ║
-            ║ 5) {o5} KlipperScreen   (Touch UI, requires reboot)  ║
-            ║ 6) {o6} Crowsnest       (Camera streaming)           ║
+            ║ 3) {o3} Mainsail        (Web UI){ms_installed}
+            ║ 4) {o4} Fluidd          (Web UI){fl_installed}
+            ║ 5) {o5} KlipperScreen   (Touch UI, requires reboot){ks_installed_txt}
+            ║ 6) {o6} Crowsnest       (Camera streaming){cn_installed_txt}
             ╟───────────────────────────────────────────────────────╢
             ║ Tip: Enter multiple numbers (e.g., 135 or 1 3 5)    ║
             ║ 提示: 可输入多个数字 (如 135 或 1 3 5)                 ║
@@ -410,7 +422,9 @@ class QuickInstallMenu(BaseMenu):
 
     def _install_klipperscreen(self) -> None:
         """安装 KlipperScreen"""
-        from components.klipperscreen.klipperscreen import install_klipperscreen_optimized
+        from components.klipperscreen.klipperscreen import (
+            install_klipperscreen_optimized,
+        )
 
         install_klipperscreen_optimized()
 
