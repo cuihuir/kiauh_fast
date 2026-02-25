@@ -283,52 +283,67 @@ def install_klipperscreen_optimized() -> None:
     # 0.1 安装动态解析的 apt 依赖
     Logger.print_status("Installing system dependencies from official script ...")
 
-    # 合并所有必需的包（PYGOBJECT 和 MISC 是必需的，XSERVER 用于图形后端）
+    # PYGOBJECT/MISC 是必需的（Python 绑定），XSERVER 包可能有依赖冲突，单独处理
     required_packages = []
+    xserver_packages = []
 
     if deps:
-        # 从解析的依赖中提取
         required_packages.extend(deps.get('PYGOBJECT', []))
         required_packages.extend(deps.get('MISC', []))
-        required_packages.extend(deps.get('XSERVER', []))  # 默认使用 Xserver
-        # OPTIONAL 包是可选的，可以尝试安装但不强制
+        xserver_packages.extend(deps.get('XSERVER', []))
         optional_packages = deps.get('OPTIONAL', [])
     else:
-        # Fallback：硬编码的最小依赖集（以防解析失败）
         required_packages = [
             "libgirepository1.0-dev", "gcc", "libcairo2-dev", "pkg-config",
             "python3-dev", "gir1.2-gtk-3.0", "librsvg2-common", "libopenjp2-7",
             "libdbus-glib-1-dev", "autoconf", "python3-venv",
+        ]
+        xserver_packages = [
             "xinit", "xinput", "x11-xserver-utils", "xserver-xorg-input-evdev",
             "xserver-xorg-input-libinput", "xserver-xorg-legacy",
             "xserver-xorg-video-fbdev",
         ]
         optional_packages = ["fonts-nanum", "fonts-ipafont", "libmpv-dev"]
 
-    # 安装必需的包
+    # 更新包列表（只做一次）
+    run(["sudo", "apt-get", "update"], check=True, capture_output=True)
+
+    # 安装必需的包（失败则中断）
     if required_packages:
         Logger.print_info(f"Installing {len(required_packages)} required packages ...")
         try:
-            # 更新包列表
-            run(["sudo", "apt-get", "update"], check=True, capture_output=True)
-
-            # 安装必需包
-            cmd = ["sudo", "apt-get", "install", "-y"] + required_packages
-            run(cmd, check=True)
+            run(["sudo", "apt-get", "install", "-y"] + required_packages, check=True)
             Logger.print_ok("Required packages installed")
         except CalledProcessError as e:
             Logger.print_error(f"Failed to install required packages: {e}")
             raise
 
+    # 安装 Xserver 包（逐个尝试，有依赖冲突时跳过并警告）
+    if xserver_packages:
+        Logger.print_info(f"Installing {len(xserver_packages)} Xserver packages ...")
+        failed_xserver = []
+        for pkg in xserver_packages:
+            result = run(
+                ["sudo", "apt-get", "install", "-y", pkg],
+                capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                failed_xserver.append(pkg)
+                Logger.print_warn(f"Skipping {pkg} (dependency conflict, install manually if needed)")
+        if failed_xserver:
+            Logger.print_warn(
+                f"The following Xserver packages could not be installed automatically: "
+                f"{', '.join(failed_xserver)}\n"
+                f"You may need to install them manually or resolve dependency conflicts."
+            )
+        else:
+            Logger.print_ok("Xserver packages installed")
+
     # 安装可选包（不强制）
     if optional_packages:
         Logger.print_info(f"Installing {len(optional_packages)} optional packages ...")
-        try:
-            cmd = ["sudo", "apt-get", "install", "-y"] + optional_packages
-            run(cmd, check=False)  # 不强制，失败也继续
-            Logger.print_ok("Optional packages installed")
-        except:
-            Logger.print_warn("Some optional packages failed to install (continuing)")
+        run(["sudo", "apt-get", "install", "-y"] + optional_packages, check=False)
+        Logger.print_ok("Optional packages installed")
 
     # 1. 创建 Python 虚拟环境（使用 uv venv，10-100x 更快）
     Logger.print_status("Set up Python virtual environment ...")
