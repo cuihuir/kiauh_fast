@@ -12,7 +12,7 @@ from __future__ import annotations
 import textwrap
 from typing import Dict, Type
 
-from core.logger import Logger
+from core.logger import DialogType, Logger
 from core.menus import FooterType
 from core.menus.base_menu import BaseMenu, Option
 from core.types.color import Color
@@ -135,7 +135,7 @@ class QuickRemoveMenu(BaseMenu):
 
         selected = [k for k, v in self.selections.items() if v]
         Logger.print_dialog(
-            None,
+            DialogType.ATTENTION,
             [
                 "The following components will be removed:",
                 "以下组件将被卸载：",
