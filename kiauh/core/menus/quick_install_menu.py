@@ -410,9 +410,9 @@ class QuickInstallMenu(BaseMenu):
 
     def _install_klipperscreen(self) -> None:
         """安装 KlipperScreen"""
-        from components.klipperscreen.klipperscreen import install_klipperscreen
+        from components.klipperscreen.klipperscreen import install_klipperscreen_optimized
 
-        install_klipperscreen()
+        install_klipperscreen_optimized()
 
     def _install_crowsnest(self) -> None:
         """安装 Crowsnest (使用优化版本)"""

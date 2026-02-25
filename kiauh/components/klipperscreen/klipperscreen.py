@@ -31,6 +31,7 @@ from core.services.backup_service import BackupService
 from core.settings.kiauh_settings import KiauhSettings
 from core.types.component_status import ComponentStatus
 from utils.common import (
+    check_install_dependencies,
     get_install_status,
 )
 from utils.config_utils import add_config_section, remove_config_section
@@ -75,14 +76,12 @@ def install_klipperscreen() -> None:
         ):
             return
 
-    # 注意：不调用 check_install_dependencies()
-    # 因为 install_klipperscreen_optimized() 会动态解析官方脚本的依赖
+    check_install_dependencies()
 
     git_clone_wrapper(KLIPPERSCREEN_REPO, KLIPPERSCREEN_DIR)
 
-    # 使用我们自己的安装逻辑（支持 uv）而不是官方脚本
     try:
-        install_klipperscreen_optimized()
+        run(KLIPPERSCREEN_INSTALL_SCRIPT.as_posix(), shell=True, check=True)
         if mr_instances:
             patch_klipperscreen_update_manager(mr_instances)
             InstanceManager.restart_all(mr_instances)
@@ -94,10 +93,10 @@ def install_klipperscreen() -> None:
         Logger.print_ok("KlipperScreen successfully installed!")
     except CalledProcessError as e:
         Logger.print_error(f"Error installing KlipperScreen:\n{e}")
-        raise  # 重新抛出异常，让上层知道安装失败
+        raise
     except Exception as e:
         Logger.print_error(f"Error installing KlipperScreen:\n{e}")
-        raise  # 重新抛出异常，让上层知道安装失败
+        raise
 
 
 def patch_klipperscreen_update_manager(instances: List[Moonraker]) -> None:
@@ -266,6 +265,53 @@ def install_klipperscreen_optimized() -> None:
     1. 动态解析官方 install.sh，提取 apt 依赖（自动适配更新）
     2. 安装 apt 依赖（使用官方的依赖列表）
     3. 替换 Python venv/pip 部分用 uv（10-100x 加速）
+    """
+    if not check_python_version(3, 7):
+        return
+
+    mr_instances = get_instances(Moonraker)
+    if not mr_instances:
+        Logger.print_dialog(
+            DialogType.WARNING,
+            [
+                "Moonraker not found! KlipperScreen will not properly work "
+                "without a working Moonraker installation.",
+                "\n\n",
+                "KlipperScreens update manager configuration for Moonraker "
+                "will not be added to any moonraker.conf.",
+            ],
+        )
+        if not get_confirm(
+            "Continue KlipperScreen installation?",
+            default_choice=False,
+            allow_go_back=True,
+        ):
+            return
+
+    git_clone_wrapper(KLIPPERSCREEN_REPO, KLIPPERSCREEN_DIR)
+
+    try:
+        _do_install_klipperscreen_optimized()
+        if mr_instances:
+            patch_klipperscreen_update_manager(mr_instances)
+            InstanceManager.restart_all(mr_instances)
+        else:
+            Logger.print_info(
+                "Moonraker is not installed! Cannot add "
+                "KlipperScreen to update manager!"
+            )
+        Logger.print_ok("KlipperScreen successfully installed!")
+    except CalledProcessError as e:
+        Logger.print_error(f"Error installing KlipperScreen:\n{e}")
+        raise
+    except Exception as e:
+        Logger.print_error(f"Error installing KlipperScreen:\n{e}")
+        raise
+
+
+def _do_install_klipperscreen_optimized() -> None:
+    """
+    KlipperScreen 安装核心逻辑（uv 加速）
     """
     import getpass
 
