@@ -74,10 +74,17 @@ class QuickInstallMenu(BaseMenu):
         # 检查安装状态
         klipper_installed = len(get_instances(Klipper)) > 0
         moonraker_installed = len(get_instances(Moonraker)) > 0
-        mainsail_installed = get_client_status(MainsailData()).status == 2
-        fluidd_installed = get_client_status(FluiddData()).status == 2
-        ks_installed = get_klipperscreen_status().status == 2
-        cn_installed = get_crowsnest_status().status == 2
+        mainsail_status = get_client_status(MainsailData()).status
+        fluidd_status = get_client_status(FluiddData()).status
+        ks_status = get_klipperscreen_status().status
+        cn_status = get_crowsnest_status().status
+
+        def status_tag(s: int) -> str:
+            if s == 2:
+                return Color.apply(" ✓已装", Color.CYAN)
+            elif s == 1:
+                return Color.apply(" ~不完整", Color.YELLOW)
+            return ""
 
         o1 = checked if self.selections["klipper"] else unchecked
         o2 = checked if self.selections["moonraker"] else unchecked
@@ -89,10 +96,10 @@ class QuickInstallMenu(BaseMenu):
         # 安装状态标记
         k_installed = Color.apply(" ✓已装", Color.CYAN) if klipper_installed else ""
         m_installed = Color.apply(" ✓已装", Color.CYAN) if moonraker_installed else ""
-        ms_installed = Color.apply(" ✓已装", Color.CYAN) if mainsail_installed else ""
-        fl_installed = Color.apply(" ✓已装", Color.CYAN) if fluidd_installed else ""
-        ks_installed_txt = Color.apply(" ✓已装", Color.CYAN) if ks_installed else ""
-        cn_installed_txt = Color.apply(" ✓已装", Color.CYAN) if cn_installed else ""
+        ms_installed = status_tag(mainsail_status)
+        fl_installed = status_tag(fluidd_status)
+        ks_installed_txt = status_tag(ks_status)
+        cn_installed_txt = status_tag(cn_status)
 
         menu = textwrap.dedent(
             f"""

@@ -57,10 +57,11 @@ class QuickRemoveMenu(BaseMenu):
         }
 
     def print_menu(self) -> None:
-        from components.crowsnest import CROWSNEST_DIR
+        from components.crowsnest.crowsnest import get_crowsnest_status
         from components.klipper.klipper import Klipper
-        from components.klipperscreen import KLIPPERSCREEN_DIR
+        from components.klipperscreen.klipperscreen import get_klipperscreen_status
         from components.moonraker.moonraker import Moonraker
+        from components.webui_client.client_utils import get_client_status
         from components.webui_client.fluidd_data import FluiddData
         from components.webui_client.mainsail_data import MainsailData
 
@@ -74,12 +75,19 @@ class QuickRemoveMenu(BaseMenu):
         o5 = checked if self.selections["klipperscreen"] else unchecked
         o6 = checked if self.selections["crowsnest"] else unchecked
 
-        kl_inst = Color.apply(" ✓已装", Color.CYAN) if get_instances(Klipper) else Color.apply(" ✗未装", Color.RED)
-        mr_inst = Color.apply(" ✓已装", Color.CYAN) if get_instances(Moonraker) else Color.apply(" ✗未装", Color.RED)
-        ms_inst = Color.apply(" ✓已装", Color.CYAN) if MainsailData().client_dir.exists() else Color.apply(" ✗未装", Color.RED)
-        fl_inst = Color.apply(" ✓已装", Color.CYAN) if FluiddData().client_dir.exists() else Color.apply(" ✗未装", Color.RED)
-        ks_inst = Color.apply(" ✓已装", Color.CYAN) if KLIPPERSCREEN_DIR.exists() else Color.apply(" ✗未装", Color.RED)
-        cn_inst = Color.apply(" ✓已装", Color.CYAN) if CROWSNEST_DIR.exists() else Color.apply(" ✗未装", Color.RED)
+        def status_tag(s: int) -> str:
+            if s == 2:
+                return Color.apply(" ✓已装", Color.CYAN)
+            elif s == 1:
+                return Color.apply(" ~不完整", Color.YELLOW)
+            return Color.apply(" ✗未装", Color.RED)
+
+        kl_inst = status_tag(2 if get_instances(Klipper) else 0)
+        mr_inst = status_tag(2 if get_instances(Moonraker) else 0)
+        ms_inst = status_tag(get_client_status(MainsailData()).status)
+        fl_inst = status_tag(get_client_status(FluiddData()).status)
+        ks_inst = status_tag(get_klipperscreen_status().status)
+        cn_inst = status_tag(get_crowsnest_status().status)
 
         menu = textwrap.dedent(
             f"""
