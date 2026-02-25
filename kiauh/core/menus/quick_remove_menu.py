@@ -216,6 +216,7 @@ class QuickRemoveMenu(BaseMenu):
             remove_service=True,
             remove_dir=True,
             remove_env=True,
+            remove_polkit=True,
         )
 
     def _remove_mainsail(self) -> None:
