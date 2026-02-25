@@ -187,37 +187,49 @@ class QuickRemoveMenu(BaseMenu):
             Logger.print_error(f"Error removing {name}: {e}")
 
     def _remove_klipper(self) -> None:
+        from components.klipper import KLIPPER_DIR, KLIPPER_ENV_DIR
         from components.klipper.klipper import Klipper
-        from components.klipper.services.klipper_setup_service import (
-            KlipperSetupService,
-        )
+        from core.instance_manager.instance_manager import InstanceManager
+        from utils.fs_utils import run_remove_routines
 
-        if not get_instances(Klipper):
+        instances = get_instances(Klipper)
+        if not instances:
             Logger.print_info("Klipper is not installed, skipping... / Klipper 未安装，跳过...")
             return
 
-        KlipperSetupService().remove(
-            remove_service=True,
-            remove_dir=True,
-            remove_env=True,
-        )
+        Logger.print_status("Removing Klipper instances ...")
+        for instance in instances:
+            InstanceManager.remove(instance)
+
+        Logger.print_status("Removing Klipper local repository ...")
+        run_remove_routines(KLIPPER_DIR)
+        Logger.print_status("Removing Klipper Python environment ...")
+        run_remove_routines(KLIPPER_ENV_DIR)
+        Logger.print_ok("Klipper removed")
 
     def _remove_moonraker(self) -> None:
+        from components.moonraker import MOONRAKER_DIR, MOONRAKER_ENV_DIR
         from components.moonraker.moonraker import Moonraker
-        from components.moonraker.services.moonraker_setup_service import (
-            MoonrakerSetupService,
-        )
+        from components.moonraker.utils.utils import remove_polkit_rules
+        from core.instance_manager.instance_manager import InstanceManager
+        from utils.fs_utils import run_remove_routines
 
-        if not get_instances(Moonraker):
+        instances = get_instances(Moonraker)
+        if not instances:
             Logger.print_info("Moonraker is not installed, skipping... / Moonraker 未安装，跳过...")
             return
 
-        MoonrakerSetupService().remove(
-            remove_service=True,
-            remove_dir=True,
-            remove_env=True,
-            remove_polkit=True,
-        )
+        Logger.print_status("Removing Moonraker instances ...")
+        for instance in instances:
+            InstanceManager.remove(instance)
+
+        Logger.print_status("Removing Moonraker policykit rules ...")
+        remove_polkit_rules()
+        Logger.print_status("Removing Moonraker local repository ...")
+        run_remove_routines(MOONRAKER_DIR)
+        Logger.print_status("Removing Moonraker Python environment ...")
+        run_remove_routines(MOONRAKER_ENV_DIR)
+        Logger.print_ok("Moonraker removed")
 
     def _remove_mainsail(self) -> None:
         from components.webui_client.client_remove import run_client_removal
