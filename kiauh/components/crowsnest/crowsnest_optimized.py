@@ -184,7 +184,9 @@ def unhold_crowsnest_packages() -> bool:
             "libv4l-rkmpp",  # Rockchip specific
             "libv4l-rkmpp-dbgsym",
             "qv4l2",
+            "qv4l2-dbgsym",
             "qvidcap",
+            "qvidcap-dbgsym",
         ])
 
         # 找出需要 unhold 的包（交集）
@@ -490,7 +492,8 @@ def install_crowsnest_optimized() -> bool:
         )
         return False
 
-    # Step 5: 执行 Makefile 安装
+    # Step 5: 执行 Makefile 安装（再次 unhold，因为 make install 内部也会调用 apt）
+    unhold_crowsnest_packages()
     if not run_crowsnest_makefile_install():
         return False
 
