@@ -246,15 +246,7 @@ def install_crowsnest_dependencies() -> bool:
             stderr=PIPE,
         )
 
-        # 2. 尝试升级 held packages
-        Logger.print_status("Upgrading held packages if needed ...")
-        run(
-            ["sudo", "apt-get", "upgrade", "-y", "--allow-change-held-packages"],
-            check=True,
-            stderr=PIPE,
-        )
-
-        # 3. 预设 iperf3 debconf 答案，避免交互式弹窗
+        # 2. 预设 iperf3 debconf 答案，避免交互式弹窗
         run(
             ["sudo", "bash", "-c",
              "echo 'iperf3 iperf3/start_daemon boolean false' | debconf-set-selections"],
