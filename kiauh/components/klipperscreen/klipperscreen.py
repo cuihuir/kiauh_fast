@@ -376,6 +376,22 @@ def install_klipperscreen_optimized() -> None:
     service_content = service_content.replace("KS_DIR", str(KLIPPERSCREEN_DIR))
     service_content = service_content.replace("KS_BACKEND", "X")  # 默认使用 Xserver
 
+    # 修正 Environment= 行：systemd 要求每个变量单独一行
+    # 模板生成的格式：Environment="KS_XCLIENT=..." BACKEND=X （不合法）
+    # 修正为两行独立的 Environment=
+    import re
+    service_content = re.sub(
+        r'Environment="(KS_XCLIENT=[^"]+)"\s+BACKEND=(\S+)',
+        r'Environment="\1"\nEnvironment="BACKEND=\2"',
+        service_content,
+    )
+    # 去掉 ExecStart 路径两端的引号（systemd 不需要，有时反而报错）
+    service_content = re.sub(
+        r'ExecStart="([^"]+)"',
+        r'ExecStart=\1',
+        service_content,
+    )
+
     # 写入 systemd 服务文件（需要 sudo）
     try:
         # 先写入临时文件
@@ -395,6 +411,21 @@ def install_klipperscreen_optimized() -> None:
     except CalledProcessError as e:
         Logger.print_error(f"Failed to install service file: {e}")
         raise
+
+    # 允许非 console 用户运行 X server（Debian 默认只允许 console 用户）
+    xwrapper = Path("/etc/X11/Xwrapper.config")
+    if xwrapper.exists():
+        content = xwrapper.read_text()
+        if "allowed_users=console" in content:
+            Logger.print_status("Configuring Xwrapper to allow X server ...")
+            new_content = content.replace("allowed_users=console", "allowed_users=anybody")
+            run(
+                ["sudo", "tee", str(xwrapper)],
+                input=new_content.encode(),
+                stdout=DEVNULL,
+                check=True,
+            )
+            Logger.print_ok("Xwrapper configured")
 
     # 启用服务
     try:
