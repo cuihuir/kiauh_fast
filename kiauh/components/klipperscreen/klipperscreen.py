@@ -8,7 +8,7 @@
 # ======================================================================= #
 import shutil
 from pathlib import Path
-from subprocess import CalledProcessError, run
+from subprocess import DEVNULL, CalledProcessError, run
 from typing import List
 
 from components.klipper.klipper import Klipper
