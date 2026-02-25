@@ -173,11 +173,18 @@ def unhold_crowsnest_packages() -> bool:
         # Crowsnest 相关的包（只检查这些）
         crowsnest_related = set([
             "v4l-utils",
+            "v4l-utils-dbgsym",
             "libv4l-0",
+            "libv4l-0-dbgsym",
             "libv4l-dev",
             "libv4l2rds0",
+            "libv4l2rds0-dbgsym",
             "libv4lconvert0",
+            "libv4lconvert0-dbgsym",
             "libv4l-rkmpp",  # Rockchip specific
+            "libv4l-rkmpp-dbgsym",
+            "qv4l2",
+            "qvidcap",
         ])
 
         # 找出需要 unhold 的包（交集）
