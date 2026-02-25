@@ -10,13 +10,24 @@ from __future__ import annotations
 
 import sys
 import textwrap
-from typing import Type
+from typing import Callable, Type
 
+from components.crowsnest.crowsnest import get_crowsnest_status
+from components.klipper.klipper_utils import get_klipper_status
+from components.klipperscreen.klipperscreen import get_klipperscreen_status
+from components.moonraker.utils.utils import get_moonraker_status
+from components.webui_client.client_utils import (
+    get_client_status,
+    get_current_client_config,
+)
+from components.webui_client.fluidd_data import FluiddData
+from components.webui_client.mainsail_data import MainsailData
 from core.logger import Logger
 from core.menus import FooterType
 from core.menus.base_menu import BaseMenu, Option
 from core.types.color import Color
-from utils.common import get_kiauh_version
+from core.types.component_status import ComponentStatus, StatusMap, StatusText
+from utils.common import get_kiauh_version, trunc_string
 
 
 # noinspection PyUnusedLocal
@@ -41,8 +52,9 @@ class MainMenu(BaseMenu):
     def set_options(self) -> None:
         self.options = {
             "1": Option(method=self.quick_install_menu),
-            "2": Option(method=self.mirror_acceleration_menu),
-            "3": Option(method=self.manual_install_menu),
+            "2": Option(method=self.quick_remove_menu),
+            "3": Option(method=self.mirror_acceleration_menu),
+            "4": Option(method=self.manual_install_menu),
         }
 
     def _init_status(self) -> None:
@@ -110,7 +122,14 @@ class MainMenu(BaseMenu):
             ║                                                       ║
             ╟───────────────────────────────────────────────────────╢
             ║                                                       ║
-            ║  2) Mirror Acceleration                               ║
+            ║  2) Quick Remove / 一键卸载                            ║
+            ║                                                       ║
+            ║     → Select components to remove                     ║
+            ║     → Batch uninstall with confirmation               ║
+            ║                                                       ║
+            ╟───────────────────────────────────────────────────────╢
+            ║                                                       ║
+            ║  3) Mirror Acceleration                               ║
             ║     镜像加速                                            ║
             ║                                                       ║
             ║     → Configure China mirrors for faster downloads    ║
@@ -119,7 +138,7 @@ class MainMenu(BaseMenu):
             ║                                                       ║
             ╟───────────────────────────────────────────────────────╢
             ║                                                       ║
-            ║  3) Manual Installation                               ║
+            ║  4) Manual Installation                               ║
             ║     手工安装                                            ║
             ║                                                       ║
             ║     → Original KIAUH menu                             ║
@@ -142,6 +161,12 @@ class MainMenu(BaseMenu):
         from core.menus.quick_install_menu import QuickInstallMenu
 
         QuickInstallMenu(previous_menu=self.__class__).run()
+
+    def quick_remove_menu(self, **kwargs) -> None:
+        """一键卸载菜单"""
+        from core.menus.quick_remove_menu import QuickRemoveMenu
+
+        QuickRemoveMenu(previous_menu=self.__class__).run()
 
     def mirror_acceleration_menu(self, **kwargs) -> None:
         """镜像加速菜单"""
