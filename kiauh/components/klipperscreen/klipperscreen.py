@@ -412,20 +412,16 @@ def install_klipperscreen_optimized() -> None:
         Logger.print_error(f"Failed to install service file: {e}")
         raise
 
-    # 允许非 console 用户运行 X server（Debian 默认只允许 console 用户）
-    xwrapper = Path("/etc/X11/Xwrapper.config")
-    if xwrapper.exists():
-        content = xwrapper.read_text()
-        if "allowed_users=console" in content:
-            Logger.print_status("Configuring Xwrapper to allow X server ...")
-            new_content = content.replace("allowed_users=console", "allowed_users=anybody")
-            run(
-                ["sudo", "tee", str(xwrapper)],
-                input=new_content.encode(),
-                stdout=DEVNULL,
-                check=True,
-            )
-            Logger.print_ok("Xwrapper configured")
+    # 允许非 console 用户运行 X server（与官方 install.sh 的 update_x11() 一致）
+    Logger.print_status("Configuring Xwrapper ...")
+    xwrapper_content = "allowed_users=anybody\nneeds_root_rights=yes\n"
+    run(
+        ["sudo", "tee", "/etc/X11/Xwrapper.config"],
+        input=xwrapper_content.encode(),
+        stdout=DEVNULL,
+        check=False,
+    )
+    Logger.print_ok("Xwrapper configured")
 
     # 启用服务
     try:
