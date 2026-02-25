@@ -348,29 +348,34 @@ def run_crowsnest_makefile_install() -> bool:
         )
         Logger.print_ok("Configuration successful!")
 
-        # Step 2: make install
-        Logger.print_status("Running 'sudo make install' ...")
-        Logger.print_info("This may take 5-10 minutes (compiling ustreamer)...")
-        Logger.print_info("Showing compilation output (you can see progress):")
-        print()  # 空行
+        # Step 2: make install（网络失败时自动重试）
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            if attempt > 1:
+                Logger.print_warn(f"Retrying make install (attempt {attempt}/{max_retries}) ...")
+            Logger.print_status("Running 'sudo make install' ...")
+            Logger.print_info("This may take 5-10 minutes (compiling ustreamer)...")
+            Logger.print_info("Showing compilation output (you can see progress):")
+            print()
 
-        # 直接运行，显示实时输出（不用 Spinner）
-        result = run(
-            ["sudo", "make", "install"],
-            cwd=CROWSNEST_DIR,
-            check=False,  # 不自动抛异常，手动检查
-        )
-        returncode = result.returncode
-        stdout = ""
-        stderr = ""
+            result = run(
+                ["sudo", "make", "install"],
+                cwd=CROWSNEST_DIR,
+                check=False,
+            )
+            returncode = result.returncode
+            stdout = ""
+            stderr = ""
 
-        print()  # 空行
-        if returncode != 0:
+            print()
+            if returncode == 0:
+                break
+
             Logger.print_error("Installation failed!")
             if stderr:
                 Logger.print_error(stderr)
 
-            # 检查是否是 held packages 问题
+            # 检查是否是 held packages 问题（不重试，直接失败）
             error_text = (stderr + stdout).lower()
             if "held packages" in error_text or "pkgproblemresolver" in error_text:
                 Logger.print_dialog(
@@ -386,14 +391,19 @@ def run_crowsnest_makefile_install() -> bool:
                         "1. Run: sudo apt-mark showhold",
                         "2. Run: sudo apt-mark unhold <package-name>",
                         "3. Run: sudo apt-get update",
-                        "4. Run: sudo apt-get upgrade -y --allow-change-held-packages",
-                        "5. Try installation again",
+                        "4. Try installation again",
                         "",
                         "Or check your apt sources:",
                         "- Edit: /etc/apt/sources.list",
                         "- Comment out problematic repos",
                     ],
                 )
+                return False
+
+            if attempt < max_retries:
+                Logger.print_info("Network error detected, will retry...")
+        else:
+            # 所有重试都失败
             return False
 
         Logger.print_ok("Crowsnest installation successful!")
