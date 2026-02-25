@@ -356,10 +356,10 @@ def install_klipperscreen_optimized() -> None:
     service_content = service_template_path.read_text()
 
     # 替换占位符
-    service_content = service_content.replace("KS_USER", username)
-    service_content = service_content.replace("KS_ENV", str(KLIPPERSCREEN_ENV_DIR))
-    service_content = service_content.replace("KS_DIR", str(KLIPPERSCREEN_DIR))
-    service_content = service_content.replace("KS_BACKEND", "X")  # 默认使用 Xserver
+    service_content = service_content.replace("%KS_USER%", username)
+    service_content = service_content.replace("%KS_ENV%", str(KLIPPERSCREEN_ENV_DIR))
+    service_content = service_content.replace("%KS_DIR%", str(KLIPPERSCREEN_DIR))
+    service_content = service_content.replace("%KS_BACKEND%", "X")  # 默认使用 Xserver
 
     # 写入 systemd 服务文件（需要 sudo）
     try:

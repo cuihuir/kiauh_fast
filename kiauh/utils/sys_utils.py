@@ -310,16 +310,15 @@ def create_python_venv(
     # 根据是否使用 uv 构造命令
     if use_uv:
         uv_bin = get_uv_binary()
-        cmd = [uv_bin, "venv", target.as_posix()]
+        cmd = [uv_bin, "venv", "--seed", target.as_posix()]
         if use_python_binary:
             cmd.extend(["--python", python_binary])
         if allow_access_to_system_site_packages:
             cmd.append("--system-site-packages")
     else:
-        cmd = ["virtualenv", "-p", python_binary, target.as_posix()]
-        cmd.append(
-            "--system-site-packages"
-        ) if allow_access_to_system_site_packages else None
+        cmd = [python_binary, "-m", "venv", target.as_posix()]
+        if allow_access_to_system_site_packages:
+            cmd.append("--system-site-packages")
 
     n = 2
     while(n > 0):
@@ -465,11 +464,6 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                 # 包含 / 但不是 URL（如 subdir/package）
                 elif "/" in line and "://" not in line:
                     is_local_path = True
-                # 包含下划线通常是目录名（如 python_wheels）
-                elif "_" in line and "://" not in line:
-                    # 确保不是包名带版本（如 some_package==1.0）
-                    if not any(op in line for op in ["==", ">=", "<=", "~=", ">", "<", "@"]):
-                        is_local_path = True
 
                 if not is_local_path:
                     # 尝试检查目录是否存在
@@ -525,13 +519,37 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                         "-r",
                         str(tmp_req),
                     ]
-                    result = run(command, stderr=PIPE, text=True)
+
+                    Logger.print_info(f"Installing {len(standard_packages)} packages with uv (10-100x faster)...")
+                    Logger.print_info("This may take 1-3 minutes for the first installation...")
+                    print()  # 空行，让进度条更清晰
+
+                    # 使用实时输出显示进度
+                    result = run(command, stderr=PIPE, text=True, timeout=600)  # 10分钟超时
+
+                    print()  # 安装完成后空行
 
                     if result.returncode != 0:
-                        Logger.print_error(f"{result.stderr}", False)
-                        raise VenvCreationFailedException("Installing standard packages failed!")
+                        Logger.print_error("uv installation failed!")
+                        Logger.print_error(f"Error output: {result.stderr}")
+                        # 尝试使用 pip fallback
+                        Logger.print_info("Attempting fallback to pip...")
+                        command = [
+                            target.joinpath("bin/pip").as_posix(),
+                            "install",
+                            "-r",
+                            str(tmp_req),
+                        ]
+                        result = run(command, stderr=PIPE, text=True)
+                        if result.returncode != 0:
+                            Logger.print_error(f"pip fallback also failed: {result.stderr}")
+                            raise VenvCreationFailedException("Installing standard packages failed!")
+                        Logger.print_ok("Successfully installed with pip (slower but works)")
 
                     Logger.print_ok("Standard packages installed successfully (via uv)")
+                except Exception as e:
+                    Logger.print_error(f"Installation error: {e}")
+                    raise
                 finally:
                     tmp_req.unlink()  # 删除临时文件
             else:
