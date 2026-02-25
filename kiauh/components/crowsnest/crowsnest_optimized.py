@@ -13,9 +13,8 @@
 from __future__ import annotations
 
 import re
-import time
 from pathlib import Path
-from subprocess import CalledProcessError, run, PIPE, DEVNULL, Popen
+from subprocess import DEVNULL, PIPE, CalledProcessError, run
 from typing import List
 
 from components.crowsnest import (
@@ -27,7 +26,6 @@ from core.logger import DialogType, Logger
 from utils.git_utils import git_clone_wrapper
 from utils.input_utils import get_confirm
 from utils.instance_utils import get_instances
-
 
 # Crowsnest 必需的系统依赖
 CROWSNEST_REQUIRED_PACKAGES = [
@@ -256,11 +254,18 @@ def install_crowsnest_dependencies() -> bool:
             stderr=PIPE,
         )
 
-        # 3. 安装依赖包
-        Logger.print_status(f"Installing {len(CROWSNEST_REQUIRED_PACKAGES)} packages ...")
-        cmd = ["sudo", "apt-get", "install", "-y"] + CROWSNEST_REQUIRED_PACKAGES
+        # 3. 预设 iperf3 debconf 答案，避免交互式弹窗
+        run(
+            ["sudo", "bash", "-c",
+             "echo 'iperf3 iperf3/start_daemon boolean false' | debconf-set-selections"],
+            check=False,
+        )
 
-        result = run(cmd, capture_output=True, text=True)
+        # 4. 安装依赖包
+        Logger.print_status(f"Installing {len(CROWSNEST_REQUIRED_PACKAGES)} packages ...")
+        cmd = ["sudo", "-E", "apt-get", "install", "-y"] + CROWSNEST_REQUIRED_PACKAGES
+        env = {**__import__("os").environ, "DEBIAN_FRONTEND": "noninteractive"}
+        result = run(cmd, capture_output=True, text=True, env=env)
 
         if result.returncode != 0:
             # 尝试单独安装每个包，识别问题包
@@ -270,10 +275,11 @@ def install_crowsnest_dependencies() -> bool:
             for pkg in CROWSNEST_REQUIRED_PACKAGES:
                 try:
                     run(
-                        ["sudo", "apt-get", "install", "-y", pkg],
+                        ["sudo", "-E", "apt-get", "install", "-y", pkg],
                         check=True,
                         stderr=DEVNULL,
                         stdout=DEVNULL,
+                        env=env,
                     )
                     Logger.print_ok(f"Installed: {pkg}")
                 except CalledProcessError:
