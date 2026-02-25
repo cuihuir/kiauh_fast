@@ -435,30 +435,97 @@ def install_klipperscreen_optimized() -> None:
         Logger.print_error(f"Failed to configure systemd service: {e}")
         raise
 
-    # 4. 配置 PolicyKit rules
+    # 4. 配置 PolicyKit rules（与官方 create_policy() 一致）
     Logger.print_status("Configuring PolicyKit rules ...")
     try:
-        # 添加用户到组
         run(["sudo", "groupadd", "-f", "klipperscreen"], check=False)
         run(["sudo", "groupadd", "-f", "network"], check=False)
         run(["sudo", "adduser", username, "netdev"], check=False)
         run(["sudo", "adduser", username, "network"], check=False)
 
-        # 检查 PolicyKit 版本并安装规则
-        try:
-            version_output = run(
-                ["pkaction", "--version"],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            Logger.print_ok("PolicyKit configured")
-        except:
-            Logger.print_warn("PolicyKit not found, skipping rules configuration")
-    except CalledProcessError as e:
+        polkit_result = run(["pkaction", "--version"], capture_output=True, text=True)
+        if polkit_result.returncode != 0:
+            Logger.print_warn("PolicyKit not installed, skipping rules")
+        else:
+            import re as _re
+            polkit_version = _re.search(r"(\d+\.?\d*)", polkit_result.stdout)
+            polkit_version = polkit_version.group(1) if polkit_version else "0"
+            Logger.print_info(f"PolicyKit Version {polkit_version} Detected")
+
+            polkit_usr_dir = Path("/usr/share/polkit-1/rules.d")
+            polkit_dir = Path("/etc/polkit-1/rules.d")
+
+            if polkit_version == "0.105":
+                # legacy pkla
+                rule_file = "/etc/polkit-1/localauthority/50-local.d/20-klipperscreen.pkla"
+                pkla_content = f"""[KlipperScreen]
+Identity=unix-user:{username}
+Action=org.freedesktop.login1.power-off;
+       org.freedesktop.login1.power-off-multiple-sessions;
+       org.freedesktop.login1.reboot;
+       org.freedesktop.login1.reboot-multiple-sessions;
+       org.freedesktop.login1.halt;
+       org.freedesktop.login1.halt-multiple-sessions;
+       org.freedesktop.NetworkManager.*
+ResultAny=yes
+"""
+                run(["sudo", "tee", rule_file], input=pkla_content.encode(), stdout=DEVNULL, check=True)
+            else:
+                if polkit_usr_dir.exists():
+                    rule_file = str(polkit_usr_dir / "KlipperScreen.rules")
+                elif polkit_dir.exists():
+                    rule_file = str(polkit_dir / "KlipperScreen.rules")
+                else:
+                    Logger.print_warn("PolicyKit rules folder not detected, skipping")
+                    rule_file = None
+
+                if rule_file:
+                    ks_gid_result = run(
+                        ["getent", "group", "klipperscreen"],
+                        capture_output=True, text=True
+                    )
+                    ks_gid = ks_gid_result.stdout.split(":")[2] if ks_gid_result.returncode == 0 else "0"
+                    rules_content = f"""polkit.addRule(function(action, subject) {{
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 && subject.isInGroup("network")) {{
+        return polkit.Result.YES;
+    }}
+}});
+polkit.addRule(function(action, subject) {{
+    if ((action.id == "org.freedesktop.login1.power-off" ||
+         action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.reboot" ||
+         action.id == "org.freedesktop.login1.reboot-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.halt" ||
+         action.id == "org.freedesktop.login1.halt-multiple-sessions" ||
+         action.id.startsWith("org.freedesktop.NetworkManager.")) &&
+        subject.user == "{username}") {{
+        return polkit.Result.YES;
+        }}
+}});
+"""
+                    run(["sudo", "rm", "-f", rule_file], check=False)
+                    run(["sudo", "tee", rule_file], input=rules_content.encode(), stdout=DEVNULL, check=True)
+
+        Logger.print_ok("PolicyKit configured")
+    except Exception as e:
         Logger.print_warn(f"PolicyKit configuration warning: {e}")
 
-    # 5. 添加桌面文件
+    # 5. fix_fbturbo（与官方 fix_fbturbo() 一致）
+    Logger.print_status("Checking fbturbo configuration ...")
+    try:
+        fbturbo_check = run(
+            ["dpkg-query", "-W", "-f=${Status}", "xserver-xorg-video-fbturbo"],
+            capture_output=True, text=True
+        )
+        fbturbo_installed = "ok installed" in fbturbo_check.stdout
+        fbconfig = Path("/usr/share/X11/xorg.conf.d/99-fbturbo.conf")
+        if not fbturbo_installed and fbconfig.exists():
+            Logger.print_warn("FBturbo not installed but config exists, moving to home folder")
+            run(["sudo", "mv", str(fbconfig), str(Path.home() / "99-fbturbo-backup.conf")], check=False)
+    except Exception as e:
+        Logger.print_warn(f"fbturbo check warning: {e}")
+
+    # 6. 添加桌面文件
     Logger.print_status("Adding desktop entry ...")
     try:
         desktop_dir = Path.home() / ".local" / "share" / "applications"
@@ -480,7 +547,25 @@ def install_klipperscreen_optimized() -> None:
     except Exception as e:
         Logger.print_warn(f"Desktop entry warning: {e}")
 
-    # 6. 启动服务
+    # 7. 安装 NetworkManager（与官方 install_network_manager() 一致）
+    Logger.print_status("Installing NetworkManager for network panel ...")
+    try:
+        run(["sudo", "apt-get", "install", "-y", "network-manager"], check=True)
+        run(["sudo", "mkdir", "-p", "/etc/NetworkManager/conf.d"], check=True)
+        nm_conf = "[main]\nauth-polkit=false\n"
+        run(
+            ["sudo", "tee", "/etc/NetworkManager/conf.d/any-user.conf"],
+            input=nm_conf.encode(), stdout=DEVNULL, check=True
+        )
+        run(["sudo", "systemctl", "disable", "dhcpcd"], check=False, capture_output=True)
+        run(["sudo", "systemctl", "stop", "dhcpcd"], check=False, capture_output=True)
+        run(["sudo", "systemctl", "enable", "NetworkManager"], check=False)
+        run(["sudo", "systemctl", "--no-block", "start", "NetworkManager"], check=False)
+        Logger.print_ok("NetworkManager installed")
+    except CalledProcessError as e:
+        Logger.print_warn(f"NetworkManager installation warning: {e}")
+
+    # 8. 启动服务
     Logger.print_status("Starting KlipperScreen service ...")
     try:
         run(["sudo", "systemctl", "restart", "KlipperScreen"], check=True)
