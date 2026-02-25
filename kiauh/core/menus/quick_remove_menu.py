@@ -274,11 +274,22 @@ class QuickRemoveMenu(BaseMenu):
         remove_klipperscreen()
 
     def _remove_crowsnest(self) -> None:
+        from pathlib import Path
+
         from components.crowsnest import CROWSNEST_DIR
-        from components.crowsnest.crowsnest import remove_crowsnest
 
         if not CROWSNEST_DIR.exists():
             Logger.print_info("Crowsnest is not installed, skipping... / Crowsnest 未安装，跳过...")
             return
 
-        remove_crowsnest()
+        service_file = Path("/etc/systemd/system/crowsnest.service")
+        if service_file.exists():
+            # 完整安装过，用 make uninstall 清理
+            from components.crowsnest.crowsnest import remove_crowsnest
+            remove_crowsnest()
+        else:
+            # 只 clone 了但未完成安装，直接删目录
+            import shutil
+            Logger.print_status("Removing crowsnest directory (incomplete install) ...")
+            shutil.rmtree(CROWSNEST_DIR)
+            Logger.print_ok("Crowsnest directory removed")
