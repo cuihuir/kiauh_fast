@@ -102,9 +102,11 @@ class QuickRemoveMenu(BaseMenu):
             ║ 5) {o5} KlipperScreen  {ks_inst:<30}║
             ║ 6) {o6} Crowsnest      {cn_inst:<30}║
             ╟───────────────────────────────────────────────────────╢
-            ║  A) Select All / 全选    C) Clear All / 清除            ║
-            ╟───────────────────────────────────────────────────────╢
-            ║  S) Start Removal / 开始卸载                            ║
+            ║ Tip: Enter multiple numbers (e.g., 125 or 1 2 5)    ║
+            ║ 提示: 可输入多个数字 (如 125 或 1 2 5)                 ║
+            ║                                                       ║
+            ║ A) Select All / 全选    C) Clear All / 清除            ║
+            ║ S) Start Removal / 开始卸载                            ║
             ╟───────────────────────────────────────────────────────╢
             """
         )[1:]
