@@ -350,6 +350,11 @@ def git_cmd_checkout(branch: str | None, target_dir: Path) -> None:
 
 def git_cmd_pull(target_dir: Path) -> None:
     try:
+        # 先 fetch 确保获取最新的远程引用
+        fetch_command = ["git", "fetch", "--all"]
+        run(fetch_command, cwd=target_dir, check=True, stdout=DEVNULL, stderr=DEVNULL)
+
+        # 再 pull 拉取更新
         command = ["git", "pull"]
         run(command, cwd=target_dir, check=True)
     except CalledProcessError as e:
