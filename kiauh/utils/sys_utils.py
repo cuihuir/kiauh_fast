@@ -168,11 +168,14 @@ def install_uv() -> bool:
         Logger.print_info("To install pip: sudo apt install python3-pip")
     else:
         try:
-            Logger.print_info("Trying pip install (alternative method)...")
+            Logger.print_info("Trying pip install with Tsinghua mirror (alternative method)...")
 
-            # 使用 python3 -m pip (更兼容)
+            # 使用清华镜像源 + python3 -m pip (更兼容)
             result = run(
-                ["python3", "-m", "pip", "install", "--user", "uv"],
+                [
+                    "python3", "-m", "pip", "install", "--user", "uv",
+                    "-i", "https://pypi.tuna.tsinghua.edu.cn/simple"
+                ],
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -195,10 +198,93 @@ def install_uv() -> bool:
                         Logger.print_ok(f"uv installed successfully! Location: {loc}")
                         return True
 
+            # 如果镜像源失败，检查是否是 PEP 668 错误
+            if "externally-managed-environment" in result.stderr or "PEP 668" in result.stderr:
+                Logger.print_warn("Detected PEP 668 protection (Debian/Ubuntu system)")
+                Logger.print_info("Trying with --break-system-packages flag...")
+
+                result = run(
+                    [
+                        "python3", "-m", "pip", "install", "uv",
+                        "-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
+                        "--break-system-packages"
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+
+                if result.returncode == 0:
+                    home_bin = Path.home() / ".local" / "bin" / "uv"
+                    if home_bin.exists():
+                        Logger.print_ok("uv installed successfully with --break-system-packages!")
+                        Logger.print_info(f"uv location: {home_bin}")
+                        import os
+                        os.environ["PATH"] = f"{home_bin.parent}:{os.environ.get('PATH', '')}"
+                        return True
+
             Logger.print_warn(f"pip install failed: {result.stderr[:200] if result.stderr else 'unknown error'}")
 
         except Exception as e:
             Logger.print_warn(f"pip install error: {e}")
+
+    # 方法 3: 使用 pipx 安装（推荐用于系统受限环境）
+    try:
+        Logger.print_info("Trying pipx install (recommended for restricted systems)...")
+
+        # 检查 pipx 是否已安装
+        pipx_check = run(
+            ["pipx", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+
+        if pipx_check.returncode != 0:
+            Logger.print_info("pipx not found, installing pipx first...")
+            Logger.print_info("Running: sudo apt update && sudo apt install -y pipx")
+
+            # 安装 pipx
+            run(["sudo", "apt", "update"], capture_output=True, timeout=60)
+            pipx_install = run(
+                ["sudo", "apt", "install", "-y", "pipx"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if pipx_install.returncode == 0:
+                # 确保 pipx 路径配置
+                run(["pipx", "ensurepath"], capture_output=True, timeout=10)
+                Logger.print_ok("pipx installed successfully!")
+            else:
+                Logger.print_warn("Failed to install pipx via apt")
+                raise Exception("pipx installation failed")
+
+        # 使用 pipx 安装 uv
+        Logger.print_info("Installing uv via pipx...")
+        result = run(
+            ["pipx", "install", "uv"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        if result.returncode == 0:
+            # pipx 通常安装到 ~/.local/bin
+            home_bin = Path.home() / ".local" / "bin" / "uv"
+            if home_bin.exists():
+                Logger.print_ok("uv installed successfully via pipx!")
+                Logger.print_info(f"uv location: {home_bin}")
+                Logger.print_info("Note: You may need to restart your shell or run: source ~/.bashrc")
+                import os
+                os.environ["PATH"] = f"{home_bin.parent}:{os.environ.get('PATH', '')}"
+                return True
+
+        Logger.print_warn(f"pipx install failed: {result.stderr[:200] if result.stderr else 'unknown error'}")
+
+    except Exception as e:
+        Logger.print_warn(f"pipx install error: {e}")
 
     # 所有方法都失败
     Logger.print_error("Failed to install uv via all methods!")
@@ -211,11 +297,19 @@ def install_uv() -> bool:
             "1. Manual installation (recommended):",
             "   curl -LsSf https://astral.sh/uv/install.sh | sh",
             "",
-            "2. Or install via pip:",
-            "   First install pip: sudo apt install python3-pip",
-            "   Then install uv: python3 -m pip install --user uv",
+            "2. Install via pip with Tsinghua mirror:",
+            "   python3 -m pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple --user",
             "",
-            "3. If behind firewall, configure proxy or use pip method",
+            "3. If you see PEP 668 error (Debian/Ubuntu), use:",
+            "   python3 -m pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple --break-system-packages",
+            "",
+            "4. Install via pipx (recommended for system restrictions):",
+            "   sudo apt update && sudo apt install pipx",
+            "   pipx ensurepath",
+            "   pipx install uv",
+            "   (Then restart your shell or run: source ~/.bashrc)",
+            "",
+            "5. If behind firewall, configure proxy or use pip with mirror",
             "",
             "KIAUH will continue with pip (slower but works).",
         ],
