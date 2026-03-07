@@ -435,30 +435,21 @@ def create_python_venv(
             except CalledProcessError as e:
                 Logger.print_error(f"Error setting up virtualenv:\n{e}")
 
-                # 如果 uv 失败，回退到传统 venv
+                # 如果 uv 失败，尝试不带 --seed 创建（更快且不需要网络）
                 if use_uv:
-                    Logger.print_warn("uv failed, falling back to traditional venv...")
-
-                    # 检查并安装 python3-venv（如果需要）
-                    try:
-                        check_output([python_binary, "-m", "venv", "--help"], stderr=DEVNULL)
-                    except CalledProcessError:
-                        Logger.print_status("Installing python3-venv package...")
-                        try:
-                            run(["sudo", "apt", "install", "-y", "python3-venv"], check=True)
-                        except CalledProcessError:
-                            Logger.print_error("Failed to install python3-venv package")
-                            return False
-
-                    cmd = [python_binary, "-m", "venv", target.as_posix()]
+                    Logger.print_warn("uv with --seed failed, trying without --seed...")
+                    uv_bin = get_uv_binary()
+                    cmd = [uv_bin, "venv", target.as_posix()]
+                    if use_python_binary:
+                        cmd.extend(["--python", python_binary])
                     if allow_access_to_system_site_packages:
                         cmd.append("--system-site-packages")
                     try:
-                        run(cmd, check=True)
-                        Logger.print_ok("Setup of virtualenv successful (using traditional venv)!")
+                        run(cmd, check=True, env=env)
+                        Logger.print_ok("Setup of virtualenv successful (using uv without seed)!")
                         return True
                     except CalledProcessError as e2:
-                        Logger.print_error(f"Traditional venv also failed:\n{e2}")
+                        Logger.print_error(f"uv without seed also failed:\n{e2}")
                         return False
 
                 return False
