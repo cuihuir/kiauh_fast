@@ -402,8 +402,8 @@ def create_python_venv(
     # If binary override is not set, we use default defined here
     python_binary = use_python_binary if use_python_binary else "/usr/bin/python3"
 
-    # 为 uv 设置镜像源环境变量（如果在中国）
-    env = os.environ.copy()
+    # 为 uv 设置环境变量
+    env = os.environ.copy()  # 继承系统代理设置（HTTP_PROXY, HTTPS_PROXY 等）
     if use_uv and detect_china_network():
         env["UV_INDEX_URL"] = "https://pypi.tuna.tsinghua.edu.cn/simple"
         Logger.print_info("Using Tsinghua mirror for uv (中国镜像加速)")
@@ -438,6 +438,18 @@ def create_python_venv(
                 # 如果 uv 失败，回退到传统 venv
                 if use_uv:
                     Logger.print_warn("uv failed, falling back to traditional venv...")
+
+                    # 检查并安装 python3-venv（如果需要）
+                    try:
+                        check_output([python_binary, "-m", "venv", "--help"], stderr=DEVNULL)
+                    except CalledProcessError:
+                        Logger.print_status("Installing python3-venv package...")
+                        try:
+                            run(["sudo", "apt", "install", "-y", "python3-venv"], check=True)
+                        except CalledProcessError:
+                            Logger.print_error("Failed to install python3-venv package")
+                            return False
+
                     cmd = [python_binary, "-m", "venv", target.as_posix()]
                     if allow_access_to_system_site_packages:
                         cmd.append("--system-site-packages")
