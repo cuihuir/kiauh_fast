@@ -603,7 +603,7 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
         # 步骤 1: 安装标准包
         # 注意：不要在这里单独安装 setuptools，让 requirements.txt 控制版本
         # uv 会自动安装最新版 setuptools (82.0.0+)，但它移除了 pkg_resources
-        # Klipper 需要 setuptools 78.1.1 才能使用 pkg_resources
+        # 上面的代码已经从 requirements.txt 中读取了 setuptools 版本并移除了条件限制
         if standard_packages:
             if use_uv:
                 Logger.print_info("Installing standard packages with uv (10-100x faster)...")
