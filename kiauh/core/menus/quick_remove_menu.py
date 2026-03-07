@@ -301,3 +301,78 @@ class QuickRemoveMenu(BaseMenu):
             Logger.print_status("Removing crowsnest directory (incomplete install) ...")
             shutil.rmtree(CROWSNEST_DIR)
             Logger.print_ok("Crowsnest directory removed")
+
+    def run(self) -> None:
+        """重写 run 方法以支持批量输入"""
+        import sys
+        import traceback
+
+        from core.menus.base_menu import clear, print_back_footer, print_header
+
+        try:
+            clear()
+            print_header()
+            self.print_menu()
+            print_back_footer()
+
+            # 直接获取用户输入（不验证，因为需要支持批量输入）
+            user_input = input(f"###### {self.input_label_txt}: ").lower().strip()
+
+            # 空输入，重新显示菜单
+            if not user_input:
+                self.run()
+                return
+
+            # 单个已知选项处理（优先处理 a, c, s, b）
+            if user_input in self.options:
+                selected_option: Option = self.options.get(user_input)
+                selected_option.method(
+                    opt_index=selected_option.opt_index,
+                    opt_data=selected_option.opt_data,
+                )
+                # 递归调用，重新显示菜单
+                self.run()
+                return
+
+            # 处理批量数字输入（如 "125" 或 "1 2 5"）
+            # 移除空格，得到纯数字字符串
+            numbers = user_input.replace(" ", "")
+
+            # 检查是否全是有效数字
+            valid_numbers = set("123456")
+            if all(c in valid_numbers for c in numbers) and len(numbers) > 0:
+                # 批量切换
+                toggle_methods = {
+                    "1": self.toggle_klipper,
+                    "2": self.toggle_moonraker,
+                    "3": self.toggle_mainsail,
+                    "4": self.toggle_fluidd,
+                    "5": self.toggle_klipperscreen,
+                    "6": self.toggle_crowsnest,
+                }
+
+                for num in numbers:
+                    if num in toggle_methods:
+                        toggle_methods[num]()
+
+                # 递归调用，重新显示菜单
+                self.run()
+                return
+
+            # 无效输入
+            Logger.print_error("Invalid option! Please select a valid option.")
+            input("Press Enter to continue...")
+            self.run()
+
+        except KeyboardInterrupt:
+            Logger.print_warn("\n\nOperation cancelled by user (Ctrl-C).")
+            Logger.print_info("Returning to previous menu...")
+            if self.previous_menu:
+                self.previous_menu().run()
+            else:
+                sys.exit(0)
+
+        except Exception as e:
+            Logger.print_error(
+                f"An unexpected error occured:\n{e}\n{traceback.format_exc()}"
+            )
