@@ -25,8 +25,9 @@ function update_kiauh() {
   cd "${KIAUH_SRCDIR}"
   git reset --hard && git pull
 
-  ok_msg "Update complete! Please restart KIAUH."
-  exit 0
+  ok_msg "Update complete! Restarting KIAUH..."
+  sleep 2
+  exec "${KIAUH_SRCDIR}/kiauh.sh"
 }
 
 #===================================================#
@@ -42,8 +43,12 @@ function kiauh_update_avail() {
   ### abort if not on master branch
   ! git branch -a | grep -q "\* master" && return
 
-  ### compare commit hash
-  git fetch -q
+  ### compare commit hash - try fetch with timeout
+  if ! timeout 10 git fetch -q 2>/dev/null; then
+    # fetch failed, skip update check
+    return
+  fi
+
   origin=$(git rev-parse --short=8 origin/master)
   head=$(git rev-parse --short=8 HEAD)
 
