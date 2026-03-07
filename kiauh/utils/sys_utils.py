@@ -647,12 +647,13 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                         "install",
                         "--python",
                         target.joinpath("bin/python").as_posix(),
+                        "--index-url", "https://pypi.tuna.tsinghua.edu.cn/simple",
                         "-r",
                         str(tmp_req),
                     ]
 
                     Logger.print_info(f"Installing {len(standard_packages)} packages with uv (10-100x faster)...")
-                    Logger.print_info("This may take 1-3 minutes for the first installation...")
+                    Logger.print_info("Using China mirror (Tsinghua) for faster downloads...")
                     print()  # 空行，让进度条更清晰
 
                     # 使用实时输出显示进度
@@ -664,39 +665,38 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                         Logger.print_error("uv installation failed!")
                         Logger.print_error(f"Error output: {result.stderr}")
 
-                        # 检查 pip 是否存在（uv venv --seed 会安装 pip，但 uv venv 不会）
-                        pip_path = target.joinpath("bin/pip")
+                        # 检查 pip 是否存在（检查 pip3 和 pip）
+                        pip_path = target.joinpath("bin/pip3")
+                        if not pip_path.exists():
+                            pip_path = target.joinpath("bin/pip")
+
                         if not pip_path.exists():
                             # pip 不存在，尝试安装 pip
                             Logger.print_warn("pip not found in virtual environment, attempting to install pip...")
                             try:
-                                # 检测系统类型并安装 pip
-                                import platform
-                                if platform.system() == "Linux":
-                                    # 检查是否是 Debian/Ubuntu 系
-                                    try:
-                                        run(["which", "apt"], check=True, stdout=DEVNULL, stderr=DEVNULL)
-                                        # 是 Debian/Ubuntu 系，使用 apt 安装
-                                        Logger.print_status("Installing python3-pip via apt...")
-                                        run(["sudo", "apt", "install", "-y", "python3-pip"], check=True)
-                                        Logger.print_ok("python3-pip installed successfully!")
-                                    except CalledProcessError:
-                                        # 不是 Debian 系，尝试使用 ensurepip
-                                        Logger.print_status("Installing pip via ensurepip...")
-                                        python_bin = target.joinpath("bin/python").as_posix()
-                                        run([python_bin, "-m", "ensurepip", "--upgrade"], check=True)
-                                        Logger.print_ok("pip installed via ensurepip!")
+                                # 使用 ensurepip 在虚拟环境中安装 pip
+                                Logger.print_status("Installing pip via ensurepip...")
+                                python_bin = target.joinpath("bin/python").as_posix()
+                                run([python_bin, "-m", "ensurepip", "--upgrade"], check=True, stdout=DEVNULL, stderr=DEVNULL)
+                                Logger.print_ok("pip installed via ensurepip!")
+
+                                # 重新检查 pip 路径
+                                pip_path = target.joinpath("bin/pip3")
+                                if not pip_path.exists():
+                                    pip_path = target.joinpath("bin/pip")
                             except CalledProcessError as e:
                                 Logger.print_error(f"Failed to install pip: {e}")
                                 Logger.print_error("Please install pip manually and try again.")
                                 raise VenvCreationFailedException("Cannot install packages: pip not available")
 
-                        # 现在 pip 应该存在了，尝试使用 pip fallback
+                        # 现在 pip 应该存在了，尝试使用 pip fallback（使用国内镜像）
                         if pip_path.exists():
-                            Logger.print_info("Attempting fallback to pip...")
+                            Logger.print_info("Attempting fallback to pip with China mirror...")
                             command = [
                                 pip_path.as_posix(),
                                 "install",
+                                "-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
+                                "--trusted-host", "pypi.tuna.tsinghua.edu.cn",
                                 "-r",
                                 str(tmp_req),
                             ]
@@ -704,7 +704,7 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                             if result.returncode != 0:
                                 Logger.print_error(f"pip fallback also failed: {result.stderr}")
                                 raise VenvCreationFailedException("Installing standard packages failed!")
-                            Logger.print_ok("Successfully installed with pip (slower but works)")
+                            Logger.print_ok("Successfully installed with pip (using China mirror)")
                         else:
                             Logger.print_error("pip still not found after installation attempt!")
                             raise VenvCreationFailedException("Cannot install packages: pip installation failed")
@@ -718,15 +718,23 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
             else:
                 # 没有 uv，用 pip 安装所有标准包
                 Logger.print_info("Installing standard packages with pip...")
+                Logger.print_info("Using China mirror (Tsinghua) for faster downloads...")
                 import tempfile
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp:
                     tmp.write('\n'.join(standard_packages))
                     tmp_req = Path(tmp.name)
 
                 try:
+                    # 检查 pip3 或 pip
+                    pip_path = target.joinpath("bin/pip3")
+                    if not pip_path.exists():
+                        pip_path = target.joinpath("bin/pip")
+
                     command = [
-                        target.joinpath("bin/pip").as_posix(),
+                        pip_path.as_posix(),
                         "install",
+                        "-i", "https://pypi.tuna.tsinghua.edu.cn/simple",
+                        "--trusted-host", "pypi.tuna.tsinghua.edu.cn",
                         "-r",
                         str(tmp_req),
                     ]
