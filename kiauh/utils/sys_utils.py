@@ -592,6 +592,25 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
 
         use_uv = ensure_uv_installed()
 
+        # 步骤 0: 确保 setuptools 总是被安装（Klipper 需要 pkg_resources）
+        # Klipper 的 requirements.txt 只在 Python 3.12+ 时安装 setuptools
+        # 但 pkg_resources 在所有版本都需要
+        if use_uv:
+            Logger.print_info("Ensuring setuptools is installed (required by Klipper)...")
+            uv_bin = get_uv_binary()
+            setuptools_cmd = [
+                uv_bin,
+                "pip",
+                "install",
+                "--python",
+                target.joinpath("bin/python").as_posix(),
+                "setuptools",
+            ]
+            try:
+                run(setuptools_cmd, capture_output=True, timeout=60)
+            except Exception:
+                pass  # 如果失败，继续安装其他包
+
         # 步骤 1: 安装标准包
         if standard_packages:
             if use_uv:
