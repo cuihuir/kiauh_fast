@@ -23,6 +23,7 @@ from typing import List, Literal, Set, Tuple
 
 from core.constants import SYSTEMD
 from core.logger import DialogType, Logger
+from utils.china_mirrors import detect_china_network
 from utils.fs_utils import check_file_exist, remove_with_sudo
 from utils.input_utils import get_confirm
 
@@ -401,6 +402,12 @@ def create_python_venv(
     # If binary override is not set, we use default defined here
     python_binary = use_python_binary if use_python_binary else "/usr/bin/python3"
 
+    # 为 uv 设置镜像源环境变量（如果在中国）
+    env = os.environ.copy()
+    if use_uv and detect_china_network():
+        env["UV_INDEX_URL"] = "https://pypi.tuna.tsinghua.edu.cn/simple"
+        Logger.print_info("Using Tsinghua mirror for uv (中国镜像加速)")
+
     # 根据是否使用 uv 构造命令
     if use_uv:
         uv_bin = get_uv_binary()
@@ -418,7 +425,8 @@ def create_python_venv(
     while(n > 0):
         if not target.exists():
             try:
-                run(cmd, check=True)
+                # 使用环境变量运行命令（如果是 uv 且设置了镜像）
+                run(cmd, check=True, env=env if use_uv else None)
                 if use_uv:
                     Logger.print_ok("Setup of virtualenv successful (using uv - 10-100x faster)!")
                 else:
@@ -426,6 +434,21 @@ def create_python_venv(
                 return True
             except CalledProcessError as e:
                 Logger.print_error(f"Error setting up virtualenv:\n{e}")
+
+                # 如果 uv 失败，回退到传统 venv
+                if use_uv:
+                    Logger.print_warn("uv failed, falling back to traditional venv...")
+                    cmd = [python_binary, "-m", "venv", target.as_posix()]
+                    if allow_access_to_system_site_packages:
+                        cmd.append("--system-site-packages")
+                    try:
+                        run(cmd, check=True)
+                        Logger.print_ok("Setup of virtualenv successful (using traditional venv)!")
+                        return True
+                    except CalledProcessError as e2:
+                        Logger.print_error(f"Traditional venv also failed:\n{e2}")
+                        return False
+
                 return False
         else:
             if n == 1:
