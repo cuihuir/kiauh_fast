@@ -507,6 +507,14 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
                 if not line or line.startswith("#"):
                     continue
 
+                # 检测条件 setuptools（如 setuptools==78.1.1 ; python_version >= '3.12'）
+                if line.startswith("setuptools") and "python_version" in line:
+                    # 移除条件，强制安装（Klipper 在所有版本都需要 pkg_resources）
+                    if ";" in line:
+                        line = line.split(";")[0].strip()
+                        original_line = line
+                    Logger.print_info(f"Forcing setuptools installation for all Python versions: {line}")
+
                 # 处理选项行（-e, -r, --index-url, --find-links 等）
                 if line.startswith("-"):
                     # 特殊处理 --find-links 选项中的本地路径
@@ -592,26 +600,10 @@ def install_python_requirements(target: Path, requirements: Path) -> None:
 
         use_uv = ensure_uv_installed()
 
-        # 步骤 0: 确保 setuptools 总是被安装（Klipper 需要 pkg_resources）
-        # Klipper 的 requirements.txt 只在 Python 3.12+ 时安装 setuptools
-        # 但 pkg_resources 在所有版本都需要
-        if use_uv:
-            Logger.print_info("Ensuring setuptools is installed (required by Klipper)...")
-            uv_bin = get_uv_binary()
-            setuptools_cmd = [
-                uv_bin,
-                "pip",
-                "install",
-                "--python",
-                target.joinpath("bin/python").as_posix(),
-                "setuptools",
-            ]
-            try:
-                run(setuptools_cmd, capture_output=True, timeout=60)
-            except Exception:
-                pass  # 如果失败，继续安装其他包
-
         # 步骤 1: 安装标准包
+        # 注意：不要在这里单独安装 setuptools，让 requirements.txt 控制版本
+        # uv 会自动安装最新版 setuptools (82.0.0+)，但它移除了 pkg_resources
+        # Klipper 需要 setuptools 78.1.1 才能使用 pkg_resources
         if standard_packages:
             if use_uv:
                 Logger.print_info("Installing standard packages with uv (10-100x faster)...")
