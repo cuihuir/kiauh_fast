@@ -45,8 +45,12 @@ def git_clone_wrapper(
 
         git_cmd_clone(repo, target_dir, blobless=True)
 
-        if branch not in ("master", "main"):
+        if branch not in ("master", "main", None):
             git_cmd_checkout(branch, target_dir)
+        else:
+            # 对于 master/main 分支，clone 后执行 pull 确保是最新的
+            Logger.print_status("Ensuring latest version...")
+            git_cmd_pull(target_dir)
 
     except CalledProcessError:
         log = "An unexpected error occured during cloning of the repository."
