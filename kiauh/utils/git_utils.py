@@ -315,26 +315,52 @@ def get_remote_commit(repo: Path) -> str | None:
 def git_cmd_clone(repo: str, target_dir: Path, blobless: bool = False) -> None:
     """
     Clones a repository with optional blobless clone.
+    Automatically retries with HTTP/1.1 if HTTP2 fails.
 
     :param repo: URL of the repository to clone.
     :param target_dir: Path where the repository will be cloned.
     :param blobless: If True, perform a blobless clone by adding the '--filter=blob:none' flag.
     """
-    try:
-        command = ["git", "clone"]
+    max_retries = 3
 
-        if blobless:
-            command.append("--filter=blob:none")
+    for attempt in range(max_retries):
+        try:
+            command = ["git", "clone"]
 
-        command += [repo, target_dir.as_posix()]
+            if blobless:
+                command.append("--filter=blob:none")
 
-        run(command, check=True)
-        Logger.print_ok("Clone successful!")
-    except CalledProcessError as e:
-        error = e.stderr.decode() if e.stderr else "Unknown error"
-        log = f"Error cloning repository {repo}: {error}"
-        Logger.print_error(log)
-        raise
+            command += [repo, target_dir.as_posix()]
+
+            run(command, check=True)
+            Logger.print_ok("Clone successful!")
+            return
+        except CalledProcessError as e:
+            error = e.stderr.decode() if e.stderr else "Unknown error"
+
+            # 检查是否是 HTTP2 错误
+            if "HTTP2" in error or "http2" in error.lower():
+                if attempt < max_retries - 1:
+                    Logger.print_warn(f"HTTP2 error detected, retrying with HTTP/1.1 (attempt {attempt + 2}/{max_retries})...")
+                    # 设置 git 使用 HTTP/1.1
+                    run(["git", "config", "--global", "http.version", "HTTP/1.1"], check=False)
+                    # 清理失败的克隆目录
+                    if target_dir.exists():
+                        shutil.rmtree(target_dir)
+                    continue
+
+            # 其他错误或最后一次重试失败
+            if attempt < max_retries - 1:
+                Logger.print_warn(f"Clone failed, retrying (attempt {attempt + 2}/{max_retries})...")
+                # 清理失败的克隆目录
+                if target_dir.exists():
+                    shutil.rmtree(target_dir)
+                continue
+
+            # 所有重试都失败
+            log = f"Error cloning repository {repo}: {error}"
+            Logger.print_error(log)
+            raise
 
 
 def git_cmd_checkout(branch: str | None, target_dir: Path) -> None:
