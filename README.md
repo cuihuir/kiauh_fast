@@ -55,6 +55,13 @@ cd kiauh_fast
 | Fluidd | Web UI | Default port 81 |
 | KlipperScreen | Touchscreen UI | Reboot required after install |
 | Crowsnest | Webcam streaming | — |
+| go2rtc | Webcam streaming (alternative) | [Usage Guide](docs/go2rtc.md) |
+
+---
+
+## Documentation
+
+- [go2rtc 使用指南](docs/go2rtc.md) — 摄像头流媒体配置和使用说明
 
 ---
 
