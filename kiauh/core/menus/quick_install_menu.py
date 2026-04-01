@@ -7,6 +7,7 @@
 #  This file may be distributed under the terms of the GNU GPLv3 license  #
 #  ======================================================================= #
 """Quick Install Menu - One-click Klipper Stack Installation"""
+
 from __future__ import annotations
 
 import sys
@@ -39,6 +40,7 @@ class QuickInstallMenu(BaseMenu):
             "fluidd": False,
             "klipperscreen": False,
             "crowsnest": False,
+            "go2rtc": False,
         }
 
     def set_previous_menu(self, previous_menu: Type[BaseMenu] | None) -> None:
@@ -54,6 +56,7 @@ class QuickInstallMenu(BaseMenu):
             "4": Option(method=self.toggle_fluidd),
             "5": Option(method=self.toggle_klipperscreen),
             "6": Option(method=self.toggle_crowsnest),
+            "7": Option(method=self.toggle_go2rtc),
             "a": Option(method=self.select_all),
             "c": Option(method=self.clear_all),
             "s": Option(method=self.start_installation),
@@ -61,6 +64,7 @@ class QuickInstallMenu(BaseMenu):
 
     def print_menu(self) -> None:
         from components.crowsnest.crowsnest import get_crowsnest_status
+        from components.go2rtc.go2rtc import get_go2rtc_status
         from components.klipper.klipper import Klipper
         from components.klipperscreen.klipperscreen import get_klipperscreen_status
         from components.moonraker.moonraker import Moonraker
@@ -78,6 +82,7 @@ class QuickInstallMenu(BaseMenu):
         fluidd_status = get_client_status(FluiddData()).status
         ks_status = get_klipperscreen_status().status
         cn_status = get_crowsnest_status().status
+        g2r_status = get_go2rtc_status().status
 
         def status_tag(s: int) -> str:
             if s == 2:
@@ -92,6 +97,7 @@ class QuickInstallMenu(BaseMenu):
         o4 = checked if self.selections["fluidd"] else unchecked
         o5 = checked if self.selections["klipperscreen"] else unchecked
         o6 = checked if self.selections["crowsnest"] else unchecked
+        o7 = checked if self.selections["go2rtc"] else unchecked
 
         # 安装状态标记
         k_installed = Color.apply(" ✓已装", Color.CYAN) if klipper_installed else ""
@@ -100,6 +106,7 @@ class QuickInstallMenu(BaseMenu):
         fl_installed = status_tag(fluidd_status)
         ks_installed_txt = status_tag(ks_status)
         cn_installed_txt = status_tag(cn_status)
+        g2r_installed_txt = status_tag(g2r_status)
 
         menu = textwrap.dedent(
             f"""
@@ -113,6 +120,7 @@ class QuickInstallMenu(BaseMenu):
             ║ 4) {o4} Fluidd          (Web UI){fl_installed}
             ║ 5) {o5} KlipperScreen   (Touch UI, requires reboot){ks_installed_txt}
             ║ 6) {o6} Crowsnest       (Camera streaming){cn_installed_txt}
+            ║ 7) {o7} go2rtc          (Camera streaming, alternative){g2r_installed_txt}
             ╟───────────────────────────────────────────────────────╢
             ║ Tip: Enter multiple numbers (e.g., 135 or 1 3 5)    ║
             ║ 提示: 可输入多个数字 (如 135 或 1 3 5)                 ║
@@ -141,6 +149,9 @@ class QuickInstallMenu(BaseMenu):
 
     def toggle_crowsnest(self, **kwargs) -> None:
         self.selections["crowsnest"] = not self.selections["crowsnest"]
+
+    def toggle_go2rtc(self, **kwargs) -> None:
+        self.selections["go2rtc"] = not self.selections["go2rtc"]
 
     def select_all(self, **kwargs) -> None:
         """全选所有组件"""
@@ -227,10 +238,7 @@ class QuickInstallMenu(BaseMenu):
         )
 
         # 检查是否安装了需要 Moonraker 的组件
-        moonraker_required = (
-            self.selections["mainsail"]
-            or self.selections["fluidd"]
-        )
+        moonraker_required = self.selections["mainsail"] or self.selections["fluidd"]
 
         # 检查 Klipper 依赖
         if klipper_required:
@@ -238,7 +246,9 @@ class QuickInstallMenu(BaseMenu):
             klipper_available = len(klipper_instances) > 0 or self.selections["klipper"]
 
             if not klipper_available:
-                Logger.print_error("Selected components require Klipper! / 所选组件需要 Klipper！")
+                Logger.print_error(
+                    "Selected components require Klipper! / 所选组件需要 Klipper！"
+                )
                 Logger.print_info(
                     "Klipper is not installed. Please select Klipper (option 1). / "
                     "Klipper 未安装，请选择 Klipper（选项 1）。"
@@ -248,10 +258,14 @@ class QuickInstallMenu(BaseMenu):
         # 检查 Moonraker 依赖
         if moonraker_required:
             moonraker_instances = get_instances(Moonraker)
-            moonraker_available = len(moonraker_instances) > 0 or self.selections["moonraker"]
+            moonraker_available = (
+                len(moonraker_instances) > 0 or self.selections["moonraker"]
+            )
 
             if not moonraker_available:
-                Logger.print_error("Web UI requires Moonraker! / Web 界面需要 Moonraker！")
+                Logger.print_error(
+                    "Web UI requires Moonraker! / Web 界面需要 Moonraker！"
+                )
                 Logger.print_info(
                     "Moonraker is not installed. Please select Moonraker (option 2). / "
                     "Moonraker 未安装，请选择 Moonraker（选项 2）。"
@@ -291,7 +305,9 @@ class QuickInstallMenu(BaseMenu):
         if self.selections["crowsnest"]:
             install_order.append("Crowsnest")
 
-        # KlipperScreen 最后安装（需要重启）
+        if self.selections["go2rtc"]:
+            install_order.append("go2rtc")
+
         if self.selections["klipperscreen"]:
             install_order.append("KlipperScreen (requires reboot)")
 
@@ -321,14 +337,18 @@ class QuickInstallMenu(BaseMenu):
             # 1. 安装 Klipper (如果未安装)
             if self.selections["klipper"]:
                 if get_instances(Klipper):
-                    Logger.print_info("Klipper already installed, skipping... / Klipper 已安装，跳过...")
+                    Logger.print_info(
+                        "Klipper already installed, skipping... / Klipper 已安装，跳过..."
+                    )
                 else:
                     self._install_component("Klipper", self._install_klipper)
 
             # 2. 安装 Moonraker (如果未安装)
             if self.selections["moonraker"]:
                 if get_instances(Moonraker):
-                    Logger.print_info("Moonraker already installed, skipping... / Moonraker 已安装，跳过...")
+                    Logger.print_info(
+                        "Moonraker already installed, skipping... / Moonraker 已安装，跳过..."
+                    )
                 else:
                     self._install_component("Moonraker", self._install_moonraker)
 
@@ -348,7 +368,9 @@ class QuickInstallMenu(BaseMenu):
             if self.selections["crowsnest"]:
                 self._install_component("Crowsnest", self._install_crowsnest)
 
-            # 6. 安装 KlipperScreen (最后，需要重启)
+            if self.selections["go2rtc"]:
+                self._install_component("go2rtc", self._install_go2rtc)
+
             if self.selections["klipperscreen"]:
                 self._install_component("KlipperScreen", self._install_klipperscreen)
 
@@ -446,19 +468,27 @@ class QuickInstallMenu(BaseMenu):
             if not success:
                 raise Exception("Crowsnest installation failed")
         except ImportError:
-            # 如果优化版本不存在，使用标准版本
             from components.crowsnest.crowsnest import install_crowsnest
 
             install_crowsnest()
+
+    def _install_go2rtc(self) -> None:
+        from components.go2rtc.go2rtc import install_go2rtc
+
+        success = install_go2rtc()
+        if not success:
+            raise Exception("go2rtc installation failed")
 
     def run(self) -> None:
         """重写 run 方法以支持批量输入"""
         try:
             clear()
             from core.menus.base_menu import print_header
+
             print_header()
             self.print_menu()
             from core.menus.base_menu import print_back_footer
+
             print_back_footer()
 
             # 直接获取用户输入（不验证，因为需要支持批量输入）
@@ -485,7 +515,7 @@ class QuickInstallMenu(BaseMenu):
             numbers = user_input.replace(" ", "")
 
             # 检查是否全是有效数字
-            valid_numbers = set("123456")
+            valid_numbers = set("1234567")
             if all(c in valid_numbers for c in numbers) and len(numbers) > 0:
                 # 批量切换
                 toggle_methods = {
@@ -495,6 +525,7 @@ class QuickInstallMenu(BaseMenu):
                     "4": self.toggle_fluidd,
                     "5": self.toggle_klipperscreen,
                     "6": self.toggle_crowsnest,
+                    "7": self.toggle_go2rtc,
                 }
 
                 for num in numbers:
