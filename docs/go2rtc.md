@@ -102,15 +102,83 @@ http://localhost:1984/api/stream.mjpeg?src=<摄像头名称>
 
 **用途**：旧设备、简单网页嵌入
 
-## Nginx 代理配置
+## Mainsail 配置
 
-配置 Nginx 代理后，可以让 Mainsail 直接使用 `/webcam/?action=stream` 地址，与 crowsnest 体验一致。
+Mainsail **原生支持 go2rtc**，无需配置 Nginx 代理。
 
 ### 配置步骤
 
-#### 1. 添加 upstream 配置
+1. **安装 go2rtc**
+   - 运行 `./kiauh.sh` → Quick Install → 勾选 `7) go2rtc`
 
-编辑 `/etc/nginx/conf.d/upstreams.conf`，添加 go2rtc upstream：
+2. **配置摄像头**
+   - 编辑 `~/printer_data/config/go2rtc.yaml`
+   - 添加摄像头流（参考上方示例）
+   - 重启 go2rtc：`sudo systemctl restart go2rtc`
+
+3. **在 Mainsail 中添加摄像头**
+   - 打开 Mainsail → 右上角齿轮图标 → **Webcams**
+   - 点击 **Add Webcam**
+   - 填写配置（见下表）
+
+### Mainsail 摄像头配置
+
+| 字段 | 值 |
+|------|-----|
+| **Name** | 任意名称（如：Printer Camera） |
+| **URL Stream** | `http://localhost:1984/api/webrtc?src=<摄像头名称>` |
+| **URL Snapshot** | `http://localhost:1984/api/frame.jpeg?src=<摄像头名称>` |
+| **Service** | **WebRTC (go2rtc)** |
+| **Enable Audio** | 可选（go2rtc 支持音频） |
+
+> 💡 将 `<摄像头名称>` 替换为你在 `go2rtc.yaml` 中配置的名称
+
+### 配置示例
+
+假设你的 `go2rtc.yaml` 配置：
+
+```yaml
+streams:
+  printer_cam: rtsp://admin:password@192.168.1.100:554/stream1
+```
+
+在 Mainsail 中配置：
+
+| 字段 | 值 |
+|------|-----|
+| URL Stream | `http://localhost:1984/api/webrtc?src=printer_cam` |
+| URL Snapshot | `http://localhost:1984/api/frame.jpeg?src=printer_cam` |
+| Service | WebRTC (go2rtc) |
+
+### 支持的 Service 类型
+
+Mainsail 支持多种 go2rtc 流类型：
+
+| Service | 说明 | 延迟 |
+|---------|------|------|
+| **WebRTC (go2rtc)** | 推荐，零延迟，支持音频 | 最低 |
+| **HLS Stream** | HTTP Live Streaming | 较高 |
+| **MJPEG-Streamer** | 传统 MJPEG 流 | 中等 |
+
+### 为什么推荐 WebRTC (go2rtc)？
+
+- ✅ **零延迟**：实时查看打印状态
+- ✅ **低带宽**：比 MJPEG 更省流量
+- ✅ **支持音频**：可听到打印声音
+- ✅ **自动适配**：根据网络状况自动调整
+
+## Nginx 代理配置（可选）
+
+如果你需要通过统一的 `/webcam/` 路径访问（如某些旧版配置或第三方工具），可以配置 Nginx 代理。
+
+> ⚠️ **注意**：对于 Mainsail，通常**不需要**配置 Nginx 代理。Mainsail 原生支持 go2rtc，直接使用上面的配置方式即可。
+
+<details>
+<summary>点击展开 Nginx 代理配置（可选）</summary>
+
+#### 1. 添加 upstream
+
+编辑 `/etc/nginx/conf.d/upstreams.conf`：
 
 ```nginx
 upstream go2rtc {
@@ -119,9 +187,9 @@ upstream go2rtc {
 }
 ```
 
-#### 2. 添加 location 配置
+#### 2. 添加 location 代理
 
-编辑 `/etc/nginx/sites-enabled/mainsail`，添加 webcam 代理：
+编辑 `/etc/nginx/sites-enabled/mainsail`：
 
 ```nginx
 location /webcam/ {
@@ -133,8 +201,6 @@ location /webcam/ {
     proxy_pass http://go2rtc/api/stream.mjpeg?src=camera1&;
 }
 ```
-
-> 💡 注意：将 `camera1` 替换为你在 go2rtc.yaml 中配置的摄像头名称
 
 #### 3. 重启 Nginx
 
@@ -142,78 +208,28 @@ location /webcam/ {
 sudo systemctl restart nginx
 ```
 
-### 多摄像头配置
+配置完成后，可通过 `/webcam/?action=stream` 访问 MJPEG 流。
 
-如果有多个摄像头，可以配置多个 location：
+</details>
 
-```nginx
-location /webcam/ {
-    postpone_output 0;
-    proxy_buffering off;
-    proxy_ignore_headers X-Accel-Buffering;
-    access_log off;
-    error_log off;
-    proxy_pass http://go2rtc/api/stream.mjpeg?src=camera1&;
-}
+### 访问方式对比
 
-location /webcam2/ {
-    postpone_output 0;
-    proxy_buffering off;
-    proxy_ignore_headers X-Accel-Buffering;
-    access_log off;
-    error_log off;
-    proxy_pass http://go2rtc/api/stream.mjpeg?src=camera2&;
-}
-```
-
-### 访问方式
-
-配置完成后，可以通过以下方式访问：
-
-| 方式 | 地址 | 说明 |
-|------|------|------|
-| Mainsail | `http://<IP>/webcam/?action=stream` | MJPEG 流（配置 Nginx 后） |
-| Mainsail | `http://<IP>/webcam2/?action=stream` | 第二个摄像头（需配置） |
-| go2rtc Web | `http://<IP>:1984` | go2rtc 管理界面（直接访问） |
-| go2rtc MJPEG | `http://<IP>:1984/api/stream.mjpeg?src=camera1` | MJPEG 流（直接访问） |
-| go2rtc WebRTC | `http://<IP>:1984` → 点击摄像头 | WebRTC 零延迟（直接访问） |
-| RTSP | `rtsp://<IP>:8554/camera1` | RTSP 流（直接访问） |
+| 方式 | 地址 | 推荐场景 |
+|------|------|----------|
+| **Mainsail 原生** | Mainsail 设置中配置 WebRTC (go2rtc) | ✅ **推荐** |
+| go2rtc Web | `http://<IP>:1984` | 管理和调试 |
+| RTSP | `rtsp://<IP>:8554/<摄像头名称>` | 第三方软件 |
+| Nginx 代理 | `http://<IP>/webcam/?action=stream` | 旧版配置（不推荐） |
 
 ### 配置后能否单独访问？
 
-**可以！** 配置 Nginx 代理后，所有 go2rtc 原有功能仍然可用：
+**可以！** 无论是否配置 Nginx 代理，go2rtc 的所有功能都保持可用：
 
 - ✅ go2rtc Web 界面：`http://<IP>:1984`
-- ✅ MJPEG 直接访问：`http://<IP>:1984/api/stream.mjpeg?src=camera1`
-- ✅ RTSP 流：`rtsp://<IP>:8554/camera1`
-- ✅ WebRTC（通过 Web 界面）
-- ✅ HLS 流：`http://<IP>:1984/api/stream.m3u8?src=camera1`
-
-Nginx 只是添加了一个额外的代理入口，不影响 go2rtc 原有的任何功能。
-
-### 完整配置示例
-
-假设你的 go2rtc.yaml 配置如下：
-
-```yaml
-streams:
-  printer_cam: rtsp://admin:password@192.168.1.100:554/stream1
-```
-
-则 Nginx 配置为：
-
-```nginx
-location /webcam/ {
-    postpone_output 0;
-    proxy_buffering off;
-    proxy_ignore_headers X-Accel-Buffering;
-    access_log off;
-    error_log off;
-    proxy_pass http://go2rtc/api/stream.mjpeg?src=printer_cam&;
-}
-```
-
-Mainsail 中使用：`/webcam/?action=stream`
+- ✅ WebRTC（通过 Mainsail 或 go2rtc Web）
+- ✅ MJPEG：`http://<IP>:1984/api/stream.mjpeg?src=<摄像头名称>`
+- ✅ RTSP：`rtsp://<IP>:8554/<摄像头名称>`
+- ✅ HLS：`http://<IP>:1984/api/stream.m3u8?src=<摄像头名称>`
 
 ## 常见摄像头配置
 
