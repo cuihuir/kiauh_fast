@@ -49,6 +49,7 @@ def install_go2rtc() -> bool:
 
         create_go2rtc_config()
         create_go2rtc_service()
+        setup_nginx_proxy()
 
         cmd_sysctl_service(GO2RTC_SERVICE_NAME, "enable")
         cmd_sysctl_service(GO2RTC_SERVICE_NAME, "start")
@@ -81,6 +82,7 @@ def create_go2rtc_config() -> None:
 # API server (default port 1984)
 api:
   listen: ":1984"
+  origin: "*"
 
 # RTSP server (default port 8554)
 rtsp:
@@ -128,6 +130,87 @@ WantedBy=multi-user.target
     run(["sudo", "systemctl", "daemon-reload"], check=True)
 
     Logger.print_ok("Systemd service created!")
+
+
+def setup_nginx_proxy() -> None:
+    Logger.print_status("Setting up Nginx proxy for go2rtc ...")
+
+    upstream_conf = Path("/etc/nginx/conf.d/upstreams.conf")
+    mainsail_conf = Path("/etc/nginx/sites-enabled/mainsail")
+
+    if not upstream_conf.exists() or not mainsail_conf.exists():
+        Logger.print_warn("Nginx configuration files not found, skipping proxy setup")
+        Logger.print_info("You can manually configure Nginx later (see docs/go2rtc.md)")
+        return
+
+    try:
+        upstream_content = upstream_conf.read_text()
+        if "upstream go2rtc" not in upstream_content:
+            upstream_content += """
+
+upstream go2rtc {
+    ip_hash;
+    server 127.0.0.1:1984;
+}
+"""
+            run(
+                ["sudo", "tee", str(upstream_conf)],
+                input=upstream_content.encode(),
+                check=True,
+            )
+            Logger.print_ok("Added go2rtc upstream to Nginx")
+
+        mainsail_content = mainsail_conf.read_text()
+        if "location /webcam/" not in mainsail_content:
+            webcam_block = """
+    location /webcam/ {
+        postpone_output 0;
+        proxy_buffering off;
+        proxy_ignore_headers X-Accel-Buffering;
+        access_log off;
+        error_log off;
+        proxy_pass http://go2rtc/api/stream.mjpeg?src=usb_camera&;
+    }
+
+    location /webcam/webrtc {
+        postpone_output 0;
+        proxy_buffering off;
+        proxy_ignore_headers X-Accel-Buffering;
+        access_log off;
+        error_log off;
+        proxy_pass http://go2rtc/api/webrtc?src=usb_camera&;
+    }
+
+    location /webcam/snapshot {
+        access_log off;
+        error_log off;
+        proxy_pass http://go2rtc/api/frame.jpeg?src=usb_camera&;
+    }
+"""
+            insert_pos = mainsail_content.rfind("}")
+            if insert_pos > 0:
+                new_content = (
+                    mainsail_content[:insert_pos]
+                    + webcam_block
+                    + mainsail_content[insert_pos:]
+                )
+                run(
+                    ["sudo", "tee", str(mainsail_conf)],
+                    input=new_content.encode(),
+                    check=True,
+                )
+                Logger.print_ok("Added go2rtc locations to Nginx")
+
+        run(["sudo", "systemctl", "reload", "nginx"], check=False)
+        Logger.print_ok("Nginx proxy configured!")
+        Logger.print_info(
+            "You can now configure Mailsail with relative URLs (no IP needed)"
+        )
+        Logger.print_info("See docs/go2rtc.md for Moonraker configuration examples")
+
+    except Exception as e:
+        Logger.print_warn(f"Nginx proxy setup failed: {e}")
+        Logger.print_info("You can manually configure Nginx later (see docs/go2rtc.md)")
 
 
 def get_current_user() -> str:

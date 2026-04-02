@@ -44,12 +44,65 @@
 ~/printer_data/config/go2rtc.yaml
 ```
 
+### ⚠️ 重要：必须配置跨域访问
+
+go2rtc 默认不允许跨域请求，Mailsail 无法访问。**必须添加 `origin: "*"`：**
+
+```yaml
+api:
+  listen: ":1984"
+  origin: "*"  # 必须添加！允许跨域访问
+```
+
 ### 基本格式
 
 ```yaml
+api:
+  listen: ":1984"
+  origin: "*"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+
 streams:
   <摄像头名称>: <流地址>
 ```
+
+### USB 摄像头配置
+
+#### 使用 v4l2（推荐，资源消耗低）
+
+```yaml
+streams:
+  usb_camera: v4l2:device?video=/dev/video0&input_format=mjpeg&video_size=1920x1080&framerate=15
+```
+
+> ⚠️ 注意：必须使用完整格式，`v4l2:///dev/video0` 不工作
+
+#### 使用 FFmpeg
+
+```yaml
+streams:
+  usb_camera: ffmpeg:device?video=/dev/video0&input_format=mjpeg&video_size=1920x1080&framerate=15
+```
+
+#### v4l2 vs FFmpeg 对比
+
+| 特性 | v4l2 | FFmpeg |
+|------|------|--------|
+| 资源消耗 | ✅ 更低 | ❌ 更高 |
+| 延迟 | ✅ 更低 | ⚠️ 略高 |
+| H264 硬件编码 | ❌ 不支持 | ✅ 支持 |
+| WebRTC 兼容 | ⚠️ 需要转码 | ✅ 原生支持 |
+
+**推荐**：使用 MJPEG 时选择 v4l2，需要 WebRTC/H264 时选择 FFmpeg。
+
+### 查看摄像头支持的格式
+
+访问 `http://<树莓派IP>:1984/add.html`，go2rtc 会自动检测并显示支持的格式。
 
 ### 添加摄像头步骤
 
@@ -102,13 +155,15 @@ http://localhost:1984/api/stream.mjpeg?src=<摄像头名称>
 
 **用途**：旧设备、简单网页嵌入
 
-## Mainsail 配置
+## Mailsail 配置
 
-Mainsail **原生支持 go2rtc**。有两种配置方式：
+Mailsail **原生支持 go2rtc**。推荐配置 Nginx 代理，这样可以像 crowsnest 一样使用相对路径，无需配置 IP 地址。
 
-### 方式一：配置 Nginx 代理（推荐，无需写 IP）
+### 安装时自动配置 Nginx
 
-配置 Nginx 后，可以像 crowsnest 一样使用相对路径 `/webcam/?action=stream`。
+使用 KIAUH Fast 安装 go2rtc 时，会自动配置 Nginx 代理，无需手动操作。
+
+### 手动配置 Nginx 代理（如果需要）
 
 #### 1. 添加 upstream
 
@@ -165,15 +220,16 @@ sudo systemctl restart nginx
 
 ```ini
 [webcam printer_cam]
-service: webrtc-go2rtc
-target_fps: 30
+service: mjpegstreamer-adaptive
+target_fps: 15
 stream_url: /webcam/webrtc
 snapshot_url: /webcam/snapshot
 flip_horizontal: False
 flip_vertical: False
 rotation: 0
-aspect_ratio: 16:9
 ```
+
+> 💡 使用 Nginx 代理后，URL 可以使用相对路径（如 `/webcam/webrtc`），无需配置 IP 地址。
 
 保存后重启 Moonraker：`sudo systemctl restart moonraker`
 
@@ -187,39 +243,53 @@ aspect_ratio: 16:9
 
 如果你不想配置 Nginx，可以使用树莓派的 IP 地址。
 
+#### 1. 在 Moonraker 中配置
+
 编辑 `~/printer_data/config/moonraker.conf`，添加：
 
 ```ini
 [webcam printer_cam]
-service: webrtc-go2rtc
-target_fps: 30
-stream_url: http://<树莓派IP>:1984/stream.html?src=printer_cam
-snapshot_url: http://<树莓派IP>:1984/api/frame.jpeg?src=printer_cam
+service: mjpegstreamer-adaptive
+target_fps: 15
+stream_url: http://<树莓派IP>:1984/api/stream.mjpeg?src=usb_camera
+snapshot_url: http://<树莓派IP>:1984/api/frame.jpeg?src=usb_camera
 flip_horizontal: False
 flip_vertical: False
 rotation: 0
-aspect_ratio: 16:9
 ```
 
-> ⚠️ **注意**：
+> ⚠️ **重要**：
 > - 必须使用树莓派的实际 IP 地址，如 `192.168.1.100`
 > - 浏览器必须能够访问这个地址（同一局域网或端口已开放）
-> - ❌ 不能使用 `localhost`（只能本地访问）
+> - ❌ 不能使用 `localhost` 或 `127.0.0.1`（只能本地访问）
+
+保存后重启 Moonraker：`sudo systemctl restart moonraker`
 
 ### 配置示例
 
 假设你的 `go2rtc.yaml` 配置：
 
 ```yaml
+api:
+  listen: ":1984"
+  origin: "*"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+
 streams:
-  printer_cam: rtsp://admin:password@192.168.1.100:554/stream1
+  usb_camera: v4l2:device?video=/dev/video0&input_format=mjpeg&video_size=1920x1080&framerate=15
 ```
 
 #### 使用 Nginx 代理（推荐）
 
 ```ini
 [webcam printer_cam]
-service: webrtc-go2rtc
+service: mjpegstreamer-adaptive
+target_fps: 15
 stream_url: /webcam/webrtc
 snapshot_url: /webcam/snapshot
 ```
@@ -228,9 +298,10 @@ snapshot_url: /webcam/snapshot
 
 ```ini
 [webcam printer_cam]
-service: webrtc-go2rtc
-stream_url: http://192.168.1.50:1984/stream.html?src=printer_cam
-snapshot_url: http://192.168.1.50:1984/api/frame.jpeg?src=printer_cam
+service: mjpegstreamer-adaptive
+target_fps: 15
+stream_url: http://192.168.1.100:1984/api/stream.mjpeg?src=usb_camera
+snapshot_url: http://192.168.1.100:1984/api/frame.jpeg?src=usb_camera
 ```
 
 ### 支持的 Service 类型
@@ -251,6 +322,24 @@ snapshot_url: http://192.168.1.50:1984/api/frame.jpeg?src=printer_cam
 ### 多摄像头配置
 
 如果有多个摄像头，需要为每个摄像头配置一个 location：
+
+#### go2rtc.yaml 配置
+
+```yaml
+api:
+  listen: ":1984"
+  origin: "*"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+
+streams:
+  camera1: v4l2:device?video=/dev/video0&input_format=mjpeg&video_size=1920x1080&framerate=15
+  camera2: rtsp://admin:password@192.168.1.101:554/stream1
+```
 
 #### Nginx 配置
 
@@ -282,12 +371,14 @@ location /webcam2/snapshot {
 
 ```ini
 [webcam camera1]
-service: webrtc-go2rtc
+service: mjpegstreamer-adaptive
+target_fps: 15
 stream_url: /webcam/webrtc
 snapshot_url: /webcam/snapshot
 
 [webcam camera2]
-service: webrtc-go2rtc
+service: mjpegstreamer-adaptive
+target_fps: 15
 stream_url: /webcam2/webrtc
 snapshot_url: /webcam2/snapshot
 ```
@@ -394,50 +485,100 @@ systemctl status go2rtc
 journalctl -u go2rtc -f
 ```
 
+### 常见问题
+
+#### Q: Mailsail 显示 "disconnected" 或 "connecting"
+
+**原因**：go2rtc 跨域访问被拒绝
+
+**解决方案**：在 `go2rtc.yaml` 中添加 `origin: "*"`
+
+```yaml
+api:
+  listen: ":1984"
+  origin: "*"  # 必须添加！
+```
+
+然后重启 go2rtc：`sudo systemctl restart go2rtc`
+
+#### Q: MJPEG 流不显示或很慢
+
+**原因**：1920x1080 @ 30fps 带宽需求太高
+
+**解决方案**：降低帧率到 15fps
+
+```yaml
+streams:
+  usb_camera: v4l2:device?video=/dev/video0&input_format=mjpeg&video_size=1920x1080&framerate=15
+```
+
+#### Q: v4l2:///dev/video0 报错 "no such file or directory"
+
+**原因**：v4l2 需要完整格式
+
+**解决方案**：使用完整格式
+
+```yaml
+# ❌ 错误
+streams:
+  usb_camera: v4l2:///dev/video0
+
+# ✅ 正确
+streams:
+  usb_camera: v4l2:device?video=/dev/video0&input_format=mjpeg&video_size=1920x1080&framerate=15
+```
+
+#### Q: Moonraker 配置的摄像头不显示
+
+**原因**：URL 使用了 localhost 或 127.0.0.1
+
+**解决方案**：使用树莓派的实际 IP 地址，或配置 Nginx 代理
+
+```ini
+# ❌ 错误
+stream_url: http://127.0.0.1:1984/api/stream.mjpeg?src=usb_camera
+
+# ✅ 正确（使用 IP 地址）
+stream_url: http://192.168.1.100:1984/api/stream.mjpeg?src=usb_camera
+
+# ✅ 正确（使用 Nginx 代理）
+stream_url: /webcam/webrtc
+```
+
+#### Q: 看不到视频流
+
+A: 检查以下几点：
+1. 摄像头是否正确连接
+2. `go2rtc.yaml` 配置是否正确
+3. 是否添加了 `origin: "*"`
+4. go2rtc 服务是否运行：`systemctl status go2rtc`
+5. 查看日志：`journalctl -u go2rtc -f`
+
+#### Q: 测试摄像头是否工作
+
+```bash
+# 测试快照
+curl -s -o /tmp/test.jpg http://localhost:1984/api/frame.jpeg?src=usb_camera && ls -la /tmp/test.jpg
+
+# 测试 MJPEG 流
+curl -s http://localhost:1984/api/stream.mjpeg?src=usb_camera | head -c 1000
+```
+
 ### 测试 RTSP 连接
 
 ```bash
-ffprobe rtsp://admin:password@192.168.1.100:554/stream1
+ffprobe rtsp://localhost:8554/usb_camera
 ```
 
 ### 检查摄像头是否可达
 
 ```bash
-ping 192.168.1.100
+# 列出所有 video 设备
+ls -la /dev/video*
+
+# 查看设备支持的格式
+v4l2-ctl -d /dev/video0 --list-formats-ext
 ```
-
-### 常见问题
-
-**Q: 看不到视频流？**
-
-A: 检查以下几点：
-1. 摄像头 IP 地址是否正确
-2. 用户名密码是否正确
-3. 摄像头是否在同一网络
-4. RTSP 地址是否正确（可用 VLC 测试）
-
-**Q: 有画面没有声音？**
-
-A: 部分摄像头音频格式不兼容，需要添加音频转码：
-```yaml
-streams:
-  camera:
-    - rtsp://admin:password@192.168.1.100:554/stream1
-    - ffmpeg:rtsp://admin:password@192.168.1.100:554/stream1#audio=opus
-```
-
-**Q: 延迟很高？**
-
-A: 使用 WebRTC 方式观看（Web 界面），这是延迟最低的方式。
-
-**Q: 如何从外部网络访问？**
-
-A: 需要在路由器中转发端口：
-- 1984 (TCP) - Web 界面
-- 8554 (TCP) - RTSP
-- 8555 (TCP/UDP) - WebRTC
-
-⚠️ 注意：开放端口有安全风险，建议使用 VPN 或反向代理。
 
 ## 更多信息
 
