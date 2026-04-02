@@ -104,50 +104,88 @@ http://localhost:1984/api/stream.mjpeg?src=<摄像头名称>
 
 ## Mainsail 配置
 
-Mainsail **原生支持 go2rtc**，无需配置 Nginx 代理。但需要注意：**必须使用树莓派的 IP 地址**，不能使用 `localhost`。
+Mainsail **原生支持 go2rtc**。有两种配置方式：
 
-### 配置步骤
+### 方式一：配置 Nginx 代理（推荐，无需写 IP）
 
-1. **安装 go2rtc**
-   - 运行 `./kiauh.sh` → Quick Install → 勾选 `7) go2rtc`
+配置 Nginx 后，可以像 crowsnest 一样使用相对路径 `/webcam/?action=stream`。
 
-2. **配置摄像头**
-   - 编辑 `~/printer_data/config/go2rtc.yaml`
-   - 添加摄像头流（参考上方示例）
-   - 重启 go2rtc：`sudo systemctl restart go2rtc`
+#### 1. 添加 upstream
 
-3. **在 Mainsail 中添加摄像头**
+编辑 `/etc/nginx/conf.d/upstreams.conf`，添加：
 
-   打开 Mainsail → 右上角齿轮图标 → **Webcams** → **Add Webcam**
-
-### 配置示例
-
-假设你的 `go2rtc.yaml` 配置：
-
-```yaml
-streams:
-  printer_cam: rtsp://admin:password@192.168.1.100:554/stream1
+```nginx
+upstream go2rtc {
+    ip_hash;
+    server 127.0.0.1:1984;
+}
 ```
 
-在 Mainsail 中配置：
+#### 2. 添加 location 代理
 
-| 字段 | 值 |
-|------|-----|
-| **Name** | Printer Camera |
-| **URL Stream** | `http://<树莓派IP>:1984/stream.html?src=printer_cam` |
-| **URL Snapshot** | `http://<树莓派IP>:1984/api/frame.jpeg?src=printer_cam` |
-| **Service** | **WebRTC (go2rtc)** |
-| **Enable Audio** | 可选（go2rtc 支持音频） |
+编辑 `/etc/nginx/sites-enabled/mainsail`，添加：
 
-> ⚠️ **重要**：将 `<树莓派IP>` 替换为实际 IP 地址，如 `192.168.1.50`
-> 
-> ❌ 错误：`http://localhost:1984/...`（只能本地访问）
-> 
-> ✅ 正确：`http://192.168.1.50:1984/...`（可远程访问）
+```nginx
+location /webcam/ {
+    postpone_output 0;
+    proxy_buffering off;
+    proxy_ignore_headers X-Accel-Buffering;
+    access_log off;
+    error_log off;
+    proxy_pass http://go2rtc/api/stream.mjpeg?src=printer_cam&;
+}
 
-### 方式一：在 Moonraker 中配置（推荐）
+location /webcam/webrtc {
+    postpone_output 0;
+    proxy_buffering off;
+    proxy_ignore_headers X-Accel-Buffering;
+    access_log off;
+    error_log off;
+    proxy_pass http://go2rtc/api/webrtc?src=printer_cam&;
+}
 
-通过 Moonraker 配置，前端会自动识别摄像头。
+location /webcam/snapshot {
+    access_log off;
+    error_log off;
+    proxy_pass http://go2rtc/api/frame.jpeg?src=printer_cam&;
+}
+```
+
+> 💡 将 `printer_cam` 替换为你在 `go2rtc.yaml` 中配置的摄像头名称
+
+#### 3. 重启 Nginx
+
+```bash
+sudo systemctl restart nginx
+```
+
+#### 4. 在 Moonraker 中配置（无需写 IP）
+
+编辑 `~/printer_data/config/moonraker.conf`，添加：
+
+```ini
+[webcam printer_cam]
+service: webrtc-go2rtc
+target_fps: 30
+stream_url: /webcam/webrtc
+snapshot_url: /webcam/snapshot
+flip_horizontal: False
+flip_vertical: False
+rotation: 0
+aspect_ratio: 16:9
+```
+
+保存后重启 Moonraker：`sudo systemctl restart moonraker`
+
+#### 5. 在 Mailsail 中验证
+
+打开 Mailsail，摄像头应该自动出现。如果没有：
+- Settings → Webcams → 检查是否启用了摄像头
+- 刷新页面
+
+### 方式二：直接使用 IP 地址（无需配置 Nginx）
+
+如果你不想配置 Nginx，可以使用树莓派的 IP 地址。
 
 编辑 `~/printer_data/config/moonraker.conf`，添加：
 
@@ -163,15 +201,39 @@ rotation: 0
 aspect_ratio: 16:9
 ```
 
-保存后重启 Moonraker：`sudo systemctl restart moonraker`
+> ⚠️ **注意**：
+> - 必须使用树莓派的实际 IP 地址，如 `192.168.1.100`
+> - 浏览器必须能够访问这个地址（同一局域网或端口已开放）
+> - ❌ 不能使用 `localhost`（只能本地访问）
 
-### 方式二：在 Mainsail 界面中直接配置
+### 配置示例
 
-如上所述，在 Mainsail 的 Webcams 设置中手动添加。
+假设你的 `go2rtc.yaml` 配置：
+
+```yaml
+streams:
+  printer_cam: rtsp://admin:password@192.168.1.100:554/stream1
+```
+
+#### 使用 Nginx 代理（推荐）
+
+```ini
+[webcam printer_cam]
+service: webrtc-go2rtc
+stream_url: /webcam/webrtc
+snapshot_url: /webcam/snapshot
+```
+
+#### 使用 IP 地址
+
+```ini
+[webcam printer_cam]
+service: webrtc-go2rtc
+stream_url: http://192.168.1.50:1984/stream.html?src=printer_cam
+snapshot_url: http://192.168.1.50:1984/api/frame.jpeg?src=printer_cam
+```
 
 ### 支持的 Service 类型
-
-Mainsail 支持多种 go2rtc 流类型：
 
 | Service | 说明 | 延迟 |
 |---------|------|------|
@@ -186,70 +248,61 @@ Mainsail 支持多种 go2rtc 流类型：
 - ✅ **支持音频**：可听到打印声音
 - ✅ **自动适配**：根据网络状况自动调整
 
-## Nginx 代理配置（可选）
+### 多摄像头配置
 
-如果你需要通过统一的 `/webcam/` 路径访问（如某些旧版配置或第三方工具），可以配置 Nginx 代理。
+如果有多个摄像头，需要为每个摄像头配置一个 location：
 
-> ⚠️ **注意**：对于 Mainsail + go2rtc 的标准使用场景，通常**不需要**配置 Nginx 代理。
-
-<details>
-<summary>点击展开 Nginx 代理配置（可选）</summary>
-
-#### 1. 添加 upstream
-
-编辑 `/etc/nginx/conf.d/upstreams.conf`：
+#### Nginx 配置
 
 ```nginx
-upstream go2rtc {
-    ip_hash;
-    server 127.0.0.1:1984;
-}
-```
-
-#### 2. 添加 location 代理
-
-编辑 `/etc/nginx/sites-enabled/mainsail`：
-
-```nginx
+# 第一个摄像头
 location /webcam/ {
-    postpone_output 0;
-    proxy_buffering off;
-    proxy_ignore_headers X-Accel-Buffering;
-    access_log off;
-    error_log off;
     proxy_pass http://go2rtc/api/stream.mjpeg?src=camera1&;
 }
+location /webcam/webrtc {
+    proxy_pass http://go2rtc/api/webrtc?src=camera1&;
+}
+location /webcam/snapshot {
+    proxy_pass http://go2rtc/api/frame.jpeg?src=camera1&;
+}
+
+# 第二个摄像头
+location /webcam2/ {
+    proxy_pass http://go2rtc/api/stream.mjpeg?src=camera2&;
+}
+location /webcam2/webrtc {
+    proxy_pass http://go2rtc/api/webrtc?src=camera2&;
+}
+location /webcam2/snapshot {
+    proxy_pass http://go2rtc/api/frame.jpeg?src=camera2&;
+}
 ```
 
-#### 3. 重启 Nginx
+#### Moonraker 配置
 
-```bash
-sudo systemctl restart nginx
+```ini
+[webcam camera1]
+service: webrtc-go2rtc
+stream_url: /webcam/webrtc
+snapshot_url: /webcam/snapshot
+
+[webcam camera2]
+service: webrtc-go2rtc
+stream_url: /webcam2/webrtc
+snapshot_url: /webcam2/snapshot
 ```
-
-配置完成后，可通过 `/webcam/?action=stream` 访问 MJPEG 流。
-
-</details>
-
-### 访问方式对比
-
-| 方式 | 地址 | 推荐场景 |
-|------|------|----------|
-| **Moonraker 配置** | 在 moonraker.conf 中配置 | ✅ **最推荐** |
-| **Mainsail 原生** | Mainsail 设置中配置 WebRTC (go2rtc) | ✅ 推荐 |
-| go2rtc Web | `http://<IP>:1984` | 管理和调试 |
-| RTSP | `rtsp://<IP>:8554/<摄像头名称>` | 第三方软件 |
-| Nginx 代理 | `http://<IP>/webcam/?action=stream` | 旧版配置（不推荐） |
 
 ### 配置后能否单独访问？
 
 **可以！** go2rtc 的所有功能都保持可用：
 
 - ✅ go2rtc Web 界面：`http://<IP>:1984`
-- ✅ WebRTC（通过 Mainsail 或 go2rtc Web）
+- ✅ WebRTC（通过 Mailsail 或 go2rtc Web）
 - ✅ MJPEG：`http://<IP>:1984/api/stream.mjpeg?src=<摄像头名称>`
 - ✅ RTSP：`rtsp://<IP>:8554/<摄像头名称>`
 - ✅ HLS：`http://<IP>:1984/api/stream.m3u8?src=<摄像头名称>`
+
+Nginx 只是添加了一个代理入口，不影响 go2rtc 原有的任何功能。
 
 ## 常见摄像头配置
 
