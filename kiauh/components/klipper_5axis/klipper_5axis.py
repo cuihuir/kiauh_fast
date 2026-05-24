@@ -95,7 +95,8 @@ def _install_service() -> None:
         )
 
         service_path = SYSTEMD.joinpath(KLIPPER_5AXIS_SERVICE_NAME)
-        service_path.write_text(service_content)
+        run(["sudo", "tee", service_path.as_posix()],
+            input=service_content.encode(), stdout=DEVNULL, check=True)
 
         # Write env file
         if KLIPPER_5AXIS_ENV_FILE_TEMPLATE.exists():
@@ -120,7 +121,8 @@ def _install_service() -> None:
                 f"{Path.home()}/printer_data/comms/klippy.sock",
             )
             env_path = SYSTEMD.joinpath(KLIPPER_5AXIS_ENV_FILE_NAME)
-            env_path.write_text(env_content)
+            run(["sudo", "tee", env_path.as_posix()],
+                input=env_content.encode(), stdout=DEVNULL, check=True)
 
         run(["systemctl", "daemon-reload"], check=True)
         run(["systemctl", "enable", KLIPPER_5AXIS_SERVICE_NAME], check=True)
@@ -180,7 +182,7 @@ def remove_klipper_5axis() -> None:
     env_path = SYSTEMD.joinpath(KLIPPER_5AXIS_ENV_FILE_NAME)
     for f in [service_path, env_path]:
         if f.exists():
-            f.unlink()
+            run(["sudo", "rm", f.as_posix()], check=False)
             Logger.print_info(f"Removed {f}")
 
     try:

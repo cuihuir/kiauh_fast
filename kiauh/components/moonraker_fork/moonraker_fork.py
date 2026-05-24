@@ -164,7 +164,8 @@ def _install_service() -> None:
         )
 
         service_path = SYSTEMD.joinpath(MOONRAKER_FORK_SERVICE_NAME)
-        service_path.write_text(service_content)
+        run(["sudo", "tee", service_path.as_posix()],
+            input=service_content.encode(), stdout=DEVNULL, check=True)
 
         # Write env file
         if MOONRAKER_FORK_ENV_FILE_TEMPLATE.exists():
@@ -177,7 +178,8 @@ def _install_service() -> None:
                 f"{Path.home()}/printer_data",
             )
             env_path = SYSTEMD.joinpath(MOONRAKER_FORK_ENV_FILE_NAME)
-            env_path.write_text(env_content)
+            run(["sudo", "tee", env_path.as_posix()],
+                input=env_content.encode(), stdout=DEVNULL, check=True)
 
         run(["systemctl", "daemon-reload"], check=True)
         run(["systemctl", "enable", MOONRAKER_FORK_SERVICE_NAME], check=True)
@@ -239,7 +241,7 @@ def remove_moonraker_fork() -> None:
         SYSTEMD.joinpath(MOONRAKER_FORK_ENV_FILE_NAME),
     ]:
         if f.exists():
-            f.unlink()
+            run(["sudo", "rm", f.as_posix()], check=False)
             Logger.print_info(f"Removed {f}")
 
     try:

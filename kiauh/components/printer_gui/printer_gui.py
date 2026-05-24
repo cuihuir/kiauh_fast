@@ -136,15 +136,16 @@ def _install_service() -> None:
             service_name = PRINTER_GUI_SERVICE_NAME
 
         service_path = SYSTEMD.joinpath(service_name)
-        service_path.write_text(service_content)
+        run(["sudo", "tee", service_path.as_posix()],
+            input=service_content.encode(), stdout=DEVNULL, check=True)
 
         # Copy start scripts to /usr/local/bin
         for script_name in ["printer-gui-start.sh", "printer-gui-eglfs-start.sh"]:
             script_src = PRINTER_GUI_DIR / "deploy" / script_name
             if script_src.exists():
                 script_dst = Path("/usr/local/bin") / script_name
-                shutil.copy2(script_src, script_dst)
-                script_dst.chmod(0o755)
+                run(["sudo", "cp", script_src.as_posix(), script_dst.as_posix()], check=True)
+                run(["sudo", "chmod", "755", script_dst.as_posix()], check=True)
 
         run(["systemctl", "daemon-reload"], check=True)
         run(["systemctl", "enable", service_name], check=True)
@@ -217,7 +218,7 @@ def remove_printer_gui() -> None:
     for svc in [PRINTER_GUI_SERVICE_NAME, PRINTER_GUI_EGLFS_SERVICE_NAME]:
         svc_path = SYSTEMD.joinpath(svc)
         if svc_path.exists():
-            svc_path.unlink()
+            run(["sudo", "rm", svc_path.as_posix()], check=False)
             Logger.print_info(f"Removed {svc_path}")
 
     # Remove start scripts
