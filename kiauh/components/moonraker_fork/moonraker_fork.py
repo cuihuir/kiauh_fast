@@ -91,9 +91,19 @@ def _install_system_packages() -> None:
 
     try:
         import json
+        import platform
 
         data = json.loads(deps_json.read_text())
-        packages = data.get("debian", []) + data.get("arch", [])
+        raw_packages = data.get("debian", []) + data.get("arch", [])
+
+        # Filter out conditional entries like "wireless-tools; distro_id != 'ubuntu'"
+        # Only keep plain package names
+        packages = []
+        for pkg in raw_packages:
+            if ";" in str(pkg):
+                continue
+            packages.append(str(pkg).strip())
+
         if packages:
             Logger.print_status(f"Installing {len(packages)} system packages ...")
             run(

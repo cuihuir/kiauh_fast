@@ -332,7 +332,7 @@ def git_cmd_clone(repo: str, target_dir: Path, blobless: bool = False) -> None:
 
             command += [repo, target_dir.as_posix()]
 
-            run(command, check=True)
+            run(command, check=True, stderr=PIPE, stdout=DEVNULL)
             Logger.print_ok("Clone successful!")
             return
         except CalledProcessError as e:
