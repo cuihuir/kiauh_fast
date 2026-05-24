@@ -41,6 +41,9 @@ class QuickInstallMenu(BaseMenu):
             "klipperscreen": False,
             "crowsnest": False,
             "go2rtc": False,
+            "klipper_5axis": False,
+            "moonraker_fork": False,
+            "printer_gui": False,
         }
 
     def set_previous_menu(self, previous_menu: Type[BaseMenu] | None) -> None:
@@ -57,6 +60,9 @@ class QuickInstallMenu(BaseMenu):
             "5": Option(method=self.toggle_klipperscreen),
             "6": Option(method=self.toggle_crowsnest),
             "7": Option(method=self.toggle_go2rtc),
+            "8": Option(method=self.toggle_klipper_5axis),
+            "9": Option(method=self.toggle_moonraker_fork),
+            "0": Option(method=self.toggle_printer_gui),
             "a": Option(method=self.select_all),
             "c": Option(method=self.clear_all),
             "s": Option(method=self.start_installation),
@@ -84,6 +90,20 @@ class QuickInstallMenu(BaseMenu):
         cn_status = get_crowsnest_status().status
         g2r_status = get_go2rtc_status().status
 
+        from components.klipper_5axis.klipper_5axis import get_klipper_5axis_status
+        from components.moonraker_fork.moonraker_fork import get_moonraker_fork_status
+        from components.printer_gui.printer_gui import get_printer_gui_status
+        from utils.version_config import VersionConfigManager
+
+        k5axis_status = get_klipper_5axis_status().status
+        mrfork_status = get_moonraker_fork_status().status
+        pgui_status = get_printer_gui_status().status
+
+        vcm = VersionConfigManager()
+        k5axis_tag = vcm.get_tag("klipper_5axis") or "N/A"
+        mrfork_tag = vcm.get_tag("moonraker_fork") or "N/A"
+        pgui_tag = vcm.get_tag("printer_gui") or "N/A"
+
         def status_tag(s: int) -> str:
             if s == 2:
                 return Color.apply(" ✓已装", Color.CYAN)
@@ -98,6 +118,9 @@ class QuickInstallMenu(BaseMenu):
         o5 = checked if self.selections["klipperscreen"] else unchecked
         o6 = checked if self.selections["crowsnest"] else unchecked
         o7 = checked if self.selections["go2rtc"] else unchecked
+        o8 = checked if self.selections["klipper_5axis"] else unchecked
+        o9 = checked if self.selections["moonraker_fork"] else unchecked
+        o0 = checked if self.selections["printer_gui"] else unchecked
 
         # 安装状态标记
         k_installed = Color.apply(" ✓已装", Color.CYAN) if klipper_installed else ""
@@ -107,6 +130,9 @@ class QuickInstallMenu(BaseMenu):
         ks_installed_txt = status_tag(ks_status)
         cn_installed_txt = status_tag(cn_status)
         g2r_installed_txt = status_tag(g2r_status)
+        k5axis_installed_txt = status_tag(k5axis_status)
+        mrfork_installed_txt = status_tag(mrfork_status)
+        pgui_installed_txt = status_tag(pgui_status)
 
         menu = textwrap.dedent(
             f"""
@@ -121,6 +147,11 @@ class QuickInstallMenu(BaseMenu):
             ║ 5) {o5} KlipperScreen   (Touch UI, requires reboot){ks_installed_txt}
             ║ 6) {o6} Crowsnest       (Camera streaming){cn_installed_txt}
             ║ 7) {o7} go2rtc          (Camera streaming, alternative){g2r_installed_txt}
+            ║                                                       ║
+            ║ --- Custom Components (version-pinned) ---            ║
+            ║ 8) {o8} Klipper 5-axis  (5-axis firmware) [{k5axis_tag}]{k5axis_installed_txt}
+            ║ 9) {o9} Moonraker Fork  (API server fork) [{mrfork_tag}]{mrfork_installed_txt}
+            ║ 0) {o0} Printer GUI     (QML touchscreen) [{pgui_tag}]{pgui_installed_txt}
             ╟───────────────────────────────────────────────────────╢
             ║ Tip: Enter multiple numbers (e.g., 135 or 1 3 5)    ║
             ║ 提示: 可输入多个数字 (如 135 或 1 3 5)                 ║
@@ -152,6 +183,15 @@ class QuickInstallMenu(BaseMenu):
 
     def toggle_go2rtc(self, **kwargs) -> None:
         self.selections["go2rtc"] = not self.selections["go2rtc"]
+
+    def toggle_klipper_5axis(self, **kwargs) -> None:
+        self.selections["klipper_5axis"] = not self.selections["klipper_5axis"]
+
+    def toggle_moonraker_fork(self, **kwargs) -> None:
+        self.selections["moonraker_fork"] = not self.selections["moonraker_fork"]
+
+    def toggle_printer_gui(self, **kwargs) -> None:
+        self.selections["printer_gui"] = not self.selections["printer_gui"]
 
     def select_all(self, **kwargs) -> None:
         """全选所有组件"""
@@ -308,6 +348,21 @@ class QuickInstallMenu(BaseMenu):
         if self.selections["go2rtc"]:
             install_order.append("go2rtc")
 
+        if self.selections["klipper_5axis"]:
+            from utils.version_config import VersionConfigManager
+            tag = VersionConfigManager().get_tag("klipper_5axis") or "?"
+            install_order.append(f"Klipper 5-axis (tag: {tag})")
+
+        if self.selections["moonraker_fork"]:
+            from utils.version_config import VersionConfigManager
+            tag = VersionConfigManager().get_tag("moonraker_fork") or "?"
+            install_order.append(f"Moonraker Fork (tag: {tag})")
+
+        if self.selections["printer_gui"]:
+            from utils.version_config import VersionConfigManager
+            tag = VersionConfigManager().get_tag("printer_gui") or "?"
+            install_order.append(f"Printer GUI QML (tag: {tag})")
+
         if self.selections["klipperscreen"]:
             install_order.append("KlipperScreen (requires reboot)")
 
@@ -373,6 +428,16 @@ class QuickInstallMenu(BaseMenu):
 
             if self.selections["klipperscreen"]:
                 self._install_component("KlipperScreen", self._install_klipperscreen)
+
+            # Custom version-pinned components
+            if self.selections["klipper_5axis"]:
+                self._install_component("Klipper 5-axis", self._install_klipper_5axis)
+
+            if self.selections["moonraker_fork"]:
+                self._install_component("Moonraker Fork", self._install_moonraker_fork)
+
+            if self.selections["printer_gui"]:
+                self._install_component("Printer GUI", self._install_printer_gui)
 
         except Exception as e:
             Logger.print_error(f"\nInstallation failed: {e}")
@@ -479,6 +544,30 @@ class QuickInstallMenu(BaseMenu):
         if not success:
             raise Exception("go2rtc installation failed")
 
+    def _install_klipper_5axis(self) -> None:
+        """安装 Klipper 5-axis (版本由 component_versions.json 控制)"""
+        from components.klipper_5axis.klipper_5axis import install_klipper_5axis
+
+        success = install_klipper_5axis()
+        if not success:
+            raise Exception("Klipper 5-axis installation failed")
+
+    def _install_moonraker_fork(self) -> None:
+        """安装 Moonraker Fork (版本由 component_versions.json 控制)"""
+        from components.moonraker_fork.moonraker_fork import install_moonraker_fork
+
+        success = install_moonraker_fork()
+        if not success:
+            raise Exception("Moonraker Fork installation failed")
+
+    def _install_printer_gui(self) -> None:
+        """安装 Printer GUI QML (版本由 component_versions.json 控制)"""
+        from components.printer_gui.printer_gui import install_printer_gui
+
+        success = install_printer_gui()
+        if not success:
+            raise Exception("Printer GUI installation failed")
+
     def run(self) -> None:
         """重写 run 方法以支持批量输入"""
         try:
@@ -515,7 +604,7 @@ class QuickInstallMenu(BaseMenu):
             numbers = user_input.replace(" ", "")
 
             # 检查是否全是有效数字
-            valid_numbers = set("1234567")
+            valid_numbers = set("1234567890")
             if all(c in valid_numbers for c in numbers) and len(numbers) > 0:
                 # 批量切换
                 toggle_methods = {
@@ -526,6 +615,9 @@ class QuickInstallMenu(BaseMenu):
                     "5": self.toggle_klipperscreen,
                     "6": self.toggle_crowsnest,
                     "7": self.toggle_go2rtc,
+                    "8": self.toggle_klipper_5axis,
+                    "9": self.toggle_moonraker_fork,
+                    "0": self.toggle_printer_gui,
                 }
 
                 for num in numbers:

@@ -443,3 +443,90 @@ def get_repo_url(repo_dir: Path) -> str | None:
         return result.stdout.strip()
     except CalledProcessError:
         return None
+
+
+def git_clone_at_tag(
+    repo: str,
+    target_dir: Path,
+    tag: str,
+    force: bool = False,
+) -> bool:
+    """
+    Clone a repository and checkout a specific tag version.
+
+    This is used for version-pinned installations where the exact
+    release tag is specified in component_versions.json.
+
+    :param repo: The URL of the repository to clone.
+    :param target_dir: The directory where the repository will be cloned.
+    :param tag: The git tag to checkout (e.g. "v0.4.0").
+    :param force: Force the cloning even if directory exists.
+    :return: True if successful, False otherwise.
+    """
+    from utils.version_config import VersionConfigManager
+
+    if not tag:
+        Logger.print_error("No tag specified for version-pinned clone!")
+        return False
+
+    log = f"Cloning '{repo}' at tag '{tag}'"
+    Logger.print_status(log)
+
+    try:
+        if target_dir.exists():
+            # Check if already at the correct tag
+            current_tag = _get_current_tag(target_dir)
+            if current_tag == tag and not force:
+                Logger.print_info(
+                    f"Already at tag '{tag}', skipping clone ..."
+                )
+                return True
+
+            question = f"'{target_dir}' already exists. Overwrite?"
+            if not force and not get_confirm(question, default_choice=False):
+                Logger.print_info("Skip cloning of repository ...")
+                return False
+            shutil.rmtree(target_dir)
+
+        git_cmd_clone(repo, target_dir, blobless=True)
+
+        # Fetch all tags
+        Logger.print_status(f"Fetching tags for '{tag}' ...")
+        run(
+            ["git", "fetch", "--all", "--tags"],
+            cwd=target_dir,
+            check=True,
+            stdout=DEVNULL,
+            stderr=DEVNULL,
+        )
+
+        # Checkout the specific tag
+        git_cmd_checkout(tag, target_dir)
+
+        Logger.print_ok(f"Successfully cloned at tag '{tag}'")
+        return True
+
+    except CalledProcessError as e:
+        error_msg = e.stderr.decode() if e.stderr else str(e)
+        Logger.print_error(f"Error cloning at tag '{tag}': {error_msg}")
+        return False
+    except OSError as e:
+        Logger.print_error(f"Error during tag-pinned clone: {e.strerror}")
+        return False
+
+
+def _get_current_tag(repo_dir: Path) -> str | None:
+    """Get the current tag of a repository, or None if not on a tag."""
+    try:
+        result = run(
+            ["git", "describe", "--tags", "--exact-match"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return None
+    except (CalledProcessError, OSError):
+        return None

@@ -32,6 +32,9 @@ from components.webui_client.client_utils import (
 )
 from components.webui_client.fluidd_data import FluiddData
 from components.webui_client.mainsail_data import MainsailData
+from components.klipper_5axis.klipper_5axis import get_klipper_5axis_status, update_klipper_5axis
+from components.moonraker_fork.moonraker_fork import get_moonraker_fork_status, update_moonraker_fork
+from components.printer_gui.printer_gui import get_printer_gui_status, update_printer_gui
 from core.logger import DialogType, Logger
 from core.menus import Option
 from core.menus.base_menu import BaseMenu
@@ -68,6 +71,9 @@ class UpdateMenu(BaseMenu):
         self.fluidd_config_local = self.fluidd_config_remote = ""
         self.klipperscreen_local = self.klipperscreen_remote = ""
         self.crowsnest_local = self.crowsnest_remote = ""
+        self.klipper_5axis_local = self.klipper_5axis_remote = ""
+        self.moonraker_fork_local = self.moonraker_fork_remote = ""
+        self.printer_gui_local = self.printer_gui_remote = ""
 
         self.mainsail_data = MainsailData()
         self.fluidd_data = FluiddData()
@@ -116,6 +122,24 @@ class UpdateMenu(BaseMenu):
             },
             "crowsnest": {
                 "display_name": "Crowsnest",
+                "installed": False,
+                "local": None,
+                "remote": None,
+            },
+            "klipper_5axis": {
+                "display_name": "Klipper 5-axis",
+                "installed": False,
+                "local": None,
+                "remote": None,
+            },
+            "moonraker_fork": {
+                "display_name": "Moonraker Fork",
+                "installed": False,
+                "local": None,
+                "remote": None,
+            },
+            "printer_gui": {
+                "display_name": "Printer GUI",
                 "installed": False,
                 "local": None,
                 "remote": None,

@@ -36,6 +36,9 @@ class QuickRemoveMenu(BaseMenu):
             "fluidd": False,
             "klipperscreen": False,
             "crowsnest": False,
+            "klipper_5axis": False,
+            "moonraker_fork": False,
+            "printer_gui": False,
         }
 
     def set_previous_menu(self, previous_menu: Type[BaseMenu] | None) -> None:
@@ -51,6 +54,9 @@ class QuickRemoveMenu(BaseMenu):
             "4": Option(method=self.toggle_fluidd),
             "5": Option(method=self.toggle_klipperscreen),
             "6": Option(method=self.toggle_crowsnest),
+            "7": Option(method=self.toggle_klipper_5axis),
+            "8": Option(method=self.toggle_moonraker_fork),
+            "9": Option(method=self.toggle_printer_gui),
             "a": Option(method=self.select_all),
             "c": Option(method=self.clear_all),
             "s": Option(method=self.start_removal),
@@ -74,6 +80,9 @@ class QuickRemoveMenu(BaseMenu):
         o4 = checked if self.selections["fluidd"] else unchecked
         o5 = checked if self.selections["klipperscreen"] else unchecked
         o6 = checked if self.selections["crowsnest"] else unchecked
+        o7 = checked if self.selections["klipper_5axis"] else unchecked
+        o8 = checked if self.selections["moonraker_fork"] else unchecked
+        o9 = checked if self.selections["printer_gui"] else unchecked
 
         def status_tag(s: int) -> str:
             if s == 2:
@@ -89,6 +98,14 @@ class QuickRemoveMenu(BaseMenu):
         ks_inst = status_tag(get_klipperscreen_status().status)
         cn_inst = status_tag(get_crowsnest_status().status)
 
+        from components.klipper_5axis.klipper_5axis import get_klipper_5axis_status
+        from components.moonraker_fork.moonraker_fork import get_moonraker_fork_status
+        from components.printer_gui.printer_gui import get_printer_gui_status
+
+        k5axis_inst = status_tag(get_klipper_5axis_status().status)
+        mrfork_inst = status_tag(get_moonraker_fork_status().status)
+        pgui_inst = status_tag(get_printer_gui_status().status)
+
         menu = textwrap.dedent(
             f"""
             ╟───────────────────────────────────────────────────────╢
@@ -101,6 +118,9 @@ class QuickRemoveMenu(BaseMenu):
             ║ 4) {o4} Fluidd         {fl_inst:<30}║
             ║ 5) {o5} KlipperScreen  {ks_inst:<30}║
             ║ 6) {o6} Crowsnest      {cn_inst:<30}║
+            ║ 7) {o7} Klipper 5-axis {k5axis_inst:<30}║
+            ║ 8) {o8} Moonraker Fork {mrfork_inst:<30}║
+            ║ 9) {o9} Printer GUI    {pgui_inst:<30}║
             ╟───────────────────────────────────────────────────────╢
             ║ Tip: Enter multiple numbers (e.g., 125 or 1 2 5)    ║
             ║ 提示: 可输入多个数字 (如 125 或 1 2 5)                 ║
@@ -129,6 +149,15 @@ class QuickRemoveMenu(BaseMenu):
 
     def toggle_crowsnest(self, **kwargs) -> None:
         self.selections["crowsnest"] = not self.selections["crowsnest"]
+
+    def toggle_klipper_5axis(self, **kwargs) -> None:
+        self.selections["klipper_5axis"] = not self.selections["klipper_5axis"]
+
+    def toggle_moonraker_fork(self, **kwargs) -> None:
+        self.selections["moonraker_fork"] = not self.selections["moonraker_fork"]
+
+    def toggle_printer_gui(self, **kwargs) -> None:
+        self.selections["printer_gui"] = not self.selections["printer_gui"]
 
     def select_all(self, **kwargs) -> None:
         for key in self.selections:
@@ -304,6 +333,33 @@ class QuickRemoveMenu(BaseMenu):
             shutil.rmtree(CROWSNEST_DIR)
             Logger.print_ok("Crowsnest directory removed")
 
+    def _remove_klipper_5axis(self) -> None:
+        from components.klipper_5axis import KLIPPER_5AXIS_DIR
+        from components.klipper_5axis.klipper_5axis import remove_klipper_5axis
+
+        if not KLIPPER_5AXIS_DIR.exists():
+            Logger.print_info("Klipper 5-axis is not installed, skipping... / Klipper 5-axis 未安装，跳过...")
+            return
+        remove_klipper_5axis()
+
+    def _remove_moonraker_fork(self) -> None:
+        from components.moonraker_fork import MOONRAKER_FORK_DIR
+        from components.moonraker_fork.moonraker_fork import remove_moonraker_fork
+
+        if not MOONRAKER_FORK_DIR.exists():
+            Logger.print_info("Moonraker Fork is not installed, skipping... / Moonraker Fork 未安装，跳过...")
+            return
+        remove_moonraker_fork()
+
+    def _remove_printer_gui(self) -> None:
+        from components.printer_gui import PRINTER_GUI_DIR
+        from components.printer_gui.printer_gui import remove_printer_gui
+
+        if not PRINTER_GUI_DIR.exists():
+            Logger.print_info("Printer GUI is not installed, skipping... / Printer GUI 未安装，跳过...")
+            return
+        remove_printer_gui()
+
     def run(self) -> None:
         """重写 run 方法以支持批量输入"""
         import sys
@@ -341,7 +397,7 @@ class QuickRemoveMenu(BaseMenu):
             numbers = user_input.replace(" ", "")
 
             # 检查是否全是有效数字
-            valid_numbers = set("123456")
+            valid_numbers = set("123456789")
             if all(c in valid_numbers for c in numbers) and len(numbers) > 0:
                 # 批量切换
                 toggle_methods = {
@@ -351,6 +407,9 @@ class QuickRemoveMenu(BaseMenu):
                     "4": self.toggle_fluidd,
                     "5": self.toggle_klipperscreen,
                     "6": self.toggle_crowsnest,
+                    "7": self.toggle_klipper_5axis,
+                    "8": self.toggle_moonraker_fork,
+                    "9": self.toggle_printer_gui,
                 }
 
                 for num in numbers:

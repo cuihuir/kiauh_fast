@@ -21,6 +21,9 @@ from components.webui_client.client_config.client_config_setup import (
 from components.webui_client.client_setup import install_client
 from components.webui_client.fluidd_data import FluiddData
 from components.webui_client.mainsail_data import MainsailData
+from components.klipper_5axis.klipper_5axis import install_klipper_5axis
+from components.moonraker_fork.moonraker_fork import install_moonraker_fork
+from components.printer_gui.printer_gui import install_printer_gui
 from components.webui_client.menus.client_install_menu import ClientInstallMenu
 from core.menus import Option
 from core.menus.base_menu import BaseMenu
@@ -54,6 +57,9 @@ class InstallMenu(BaseMenu):
             "6": Option(method=self.install_fluidd_config),
             "7": Option(method=self.install_klipperscreen),
             "8": Option(method=self.install_crowsnest),
+            "9": Option(method=self.install_klipper_5axis_manual),
+            "10": Option(method=self.install_moonraker_fork_manual),
+            "11": Option(method=self.install_printer_gui_manual),
         }
 
     def print_menu(self) -> None:
@@ -107,3 +113,12 @@ class InstallMenu(BaseMenu):
 
     def install_crowsnest(self, **kwargs) -> None:
         install_crowsnest()
+
+    def install_klipper_5axis_manual(self, **kwargs) -> None:
+        install_klipper_5axis()
+
+    def install_moonraker_fork_manual(self, **kwargs) -> None:
+        install_moonraker_fork()
+
+    def install_printer_gui_manual(self, **kwargs) -> None:
+        install_printer_gui()

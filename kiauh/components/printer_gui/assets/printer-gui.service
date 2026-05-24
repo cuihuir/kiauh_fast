@@ -1,0 +1,22 @@
+[Unit]
+Description=3D Printer GUI (QML)
+Documentation=https://github.com/cuihuir/printer-gui-qml
+After=network-online.target dbus.socket systemd-logind.service
+Wants=network-online.target
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%PRINTER_GUI_DIR%
+Environment=HOME=%HOME_DIR%
+EnvironmentFile=%ENV_FILE%
+ExecStart=%PRINTER_GUI_DIR%/.venv/bin/python %PRINTER_GUI_DIR%/main.py
+Restart=always
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=printer-gui
+Nice=-5

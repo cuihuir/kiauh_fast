@@ -1,0 +1,24 @@
+{
+    "version": "1.0",
+    "description": "Component version pinning configuration. Each component specifies its target git tag.",
+    "components": {
+        "klipper_5axis": {
+            "repo_url": "git@github.com:cuihuir/5-axis.git",
+            "tag": "v0.4.0",
+            "install_dir": "klipper-5axis",
+            "env_dir": "klipper-5axis-env"
+        },
+        "printer_gui": {
+            "repo_url": "git@github.com:cuihuir/printer-gui-qml.git",
+            "tag": "v0.4.0",
+            "install_dir": "printer-gui",
+            "env_dir": "printer-gui-env"
+        },
+        "moonraker_fork": {
+            "repo_url": "https://github.com/cuihuir/moonraker.git",
+            "tag": "v0.4.0",
+            "install_dir": "moonraker-fork",
+            "env_dir": "moonraker-fork-env"
+        }
+    }
+}
