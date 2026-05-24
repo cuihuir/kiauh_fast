@@ -14,11 +14,11 @@
             "install_dir": "printer-gui",
             "env_dir": "printer-gui-env"
         },
-        "moonraker_fork": {
+        "moonraker_tope": {
             "repo_url": "https://github.com/cuihuir/moonraker.git",
             "tag": "v0.4.0",
-            "install_dir": "moonraker-fork",
-            "env_dir": "moonraker-fork-env"
+            "install_dir": "moonraker-tope",
+            "env_dir": "moonraker-tope-env"
         }
     }
 }

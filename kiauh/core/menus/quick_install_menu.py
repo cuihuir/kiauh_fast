@@ -42,7 +42,7 @@ class QuickInstallMenu(BaseMenu):
             "crowsnest": False,
             "go2rtc": False,
             "klipper_5axis": False,
-            "moonraker_fork": False,
+            "moonraker_tope": False,
             "printer_gui": False,
         }
 
@@ -61,7 +61,7 @@ class QuickInstallMenu(BaseMenu):
             "6": Option(method=self.toggle_crowsnest),
             "7": Option(method=self.toggle_go2rtc),
             "8": Option(method=self.toggle_klipper_5axis),
-            "9": Option(method=self.toggle_moonraker_fork),
+            "9": Option(method=self.toggle_moonraker_tope),
             "0": Option(method=self.toggle_printer_gui),
             "a": Option(method=self.select_all),
             "c": Option(method=self.clear_all),
@@ -91,17 +91,17 @@ class QuickInstallMenu(BaseMenu):
         g2r_status = get_go2rtc_status().status
 
         from components.klipper_5axis.klipper_5axis import get_klipper_5axis_status
-        from components.moonraker_fork.moonraker_fork import get_moonraker_fork_status
+        from components.moonraker_tope.moonraker_tope import get_moonraker_tope_status
         from components.printer_gui.printer_gui import get_printer_gui_status
         from utils.version_config import VersionConfigManager
 
         k5axis_status = get_klipper_5axis_status().status
-        mrfork_status = get_moonraker_fork_status().status
+        mrfork_status = get_moonraker_tope_status().status
         pgui_status = get_printer_gui_status().status
 
         vcm = VersionConfigManager()
         k5axis_tag = vcm.get_tag("klipper_5axis") or "N/A"
-        mrfork_tag = vcm.get_tag("moonraker_fork") or "N/A"
+        mrfork_tag = vcm.get_tag("moonraker_tope") or "N/A"
         pgui_tag = vcm.get_tag("printer_gui") or "N/A"
 
         def status_tag(s: int) -> str:
@@ -119,7 +119,7 @@ class QuickInstallMenu(BaseMenu):
         o6 = checked if self.selections["crowsnest"] else unchecked
         o7 = checked if self.selections["go2rtc"] else unchecked
         o8 = checked if self.selections["klipper_5axis"] else unchecked
-        o9 = checked if self.selections["moonraker_fork"] else unchecked
+        o9 = checked if self.selections["moonraker_tope"] else unchecked
         o0 = checked if self.selections["printer_gui"] else unchecked
 
         # 安装状态标记
@@ -150,7 +150,7 @@ class QuickInstallMenu(BaseMenu):
             ║                                                       ║
             ║ --- Custom Components (version-pinned) ---            ║
             ║ 8) {o8} Klipper 5-axis  (5-axis firmware) [{k5axis_tag}]{k5axis_installed_txt}
-            ║ 9) {o9} Moonraker Fork  (API server fork) [{mrfork_tag}]{mrfork_installed_txt}
+            ║ 9) {o9} Moonraker Tope  (API server fork) [{mrfork_tag}]{mrfork_installed_txt}
             ║ 0) {o0} Printer GUI     (QML touchscreen) [{pgui_tag}]{pgui_installed_txt}
             ╟───────────────────────────────────────────────────────╢
             ║ Tip: Enter multiple numbers (e.g., 135 or 1 3 5)    ║
@@ -187,8 +187,8 @@ class QuickInstallMenu(BaseMenu):
     def toggle_klipper_5axis(self, **kwargs) -> None:
         self.selections["klipper_5axis"] = not self.selections["klipper_5axis"]
 
-    def toggle_moonraker_fork(self, **kwargs) -> None:
-        self.selections["moonraker_fork"] = not self.selections["moonraker_fork"]
+    def toggle_moonraker_tope(self, **kwargs) -> None:
+        self.selections["moonraker_tope"] = not self.selections["moonraker_tope"]
 
     def toggle_printer_gui(self, **kwargs) -> None:
         self.selections["printer_gui"] = not self.selections["printer_gui"]
@@ -353,10 +353,10 @@ class QuickInstallMenu(BaseMenu):
             tag = VersionConfigManager().get_tag("klipper_5axis") or "?"
             install_order.append(f"Klipper 5-axis (tag: {tag})")
 
-        if self.selections["moonraker_fork"]:
+        if self.selections["moonraker_tope"]:
             from utils.version_config import VersionConfigManager
-            tag = VersionConfigManager().get_tag("moonraker_fork") or "?"
-            install_order.append(f"Moonraker Fork (tag: {tag})")
+            tag = VersionConfigManager().get_tag("moonraker_tope") or "?"
+            install_order.append(f"Moonraker Tope (tag: {tag})")
 
         if self.selections["printer_gui"]:
             from utils.version_config import VersionConfigManager
@@ -433,8 +433,8 @@ class QuickInstallMenu(BaseMenu):
             if self.selections["klipper_5axis"]:
                 self._install_component("Klipper 5-axis", self._install_klipper_5axis)
 
-            if self.selections["moonraker_fork"]:
-                self._install_component("Moonraker Fork", self._install_moonraker_fork)
+            if self.selections["moonraker_tope"]:
+                self._install_component("Moonraker Tope", self._install_moonraker_tope)
 
             if self.selections["printer_gui"]:
                 self._install_component("Printer GUI", self._install_printer_gui)
@@ -552,13 +552,13 @@ class QuickInstallMenu(BaseMenu):
         if not success:
             raise Exception("Klipper 5-axis installation failed")
 
-    def _install_moonraker_fork(self) -> None:
-        """安装 Moonraker Fork (版本由 component_versions.json 控制)"""
-        from components.moonraker_fork.moonraker_fork import install_moonraker_fork
+    def _install_moonraker_tope(self) -> None:
+        """安装 Moonraker Tope (版本由 component_versions.json 控制)"""
+        from components.moonraker_tope.moonraker_tope import install_moonraker_tope
 
-        success = install_moonraker_fork()
+        success = install_moonraker_tope()
         if not success:
-            raise Exception("Moonraker Fork installation failed")
+            raise Exception("Moonraker Tope installation failed")
 
     def _install_printer_gui(self) -> None:
         """安装 Printer GUI QML (版本由 component_versions.json 控制)"""
@@ -616,7 +616,7 @@ class QuickInstallMenu(BaseMenu):
                     "6": self.toggle_crowsnest,
                     "7": self.toggle_go2rtc,
                     "8": self.toggle_klipper_5axis,
-                    "9": self.toggle_moonraker_fork,
+                    "9": self.toggle_moonraker_tope,
                     "0": self.toggle_printer_gui,
                 }
 

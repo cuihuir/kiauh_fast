@@ -1,23 +1,23 @@
-"""Moonraker Fork component - Install, update, remove functions."""
+"""Moonraker Tope component - Install, update, remove functions."""
 from __future__ import annotations
 
 import shutil
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, CalledProcessError, run
 
-from components.moonraker_fork import (
-    EXIT_MOONRAKER_FORK_SETUP,
-    MOONRAKER_FORK_DIR,
-    MOONRAKER_FORK_ENV_DIR,
-    MOONRAKER_FORK_ENV_FILE_NAME,
-    MOONRAKER_FORK_ENV_FILE_TEMPLATE,
-    MOONRAKER_FORK_REPO_URL,
-    MOONRAKER_FORK_REQ_FILE,
-    MOONRAKER_FORK_SERVICE_NAME,
-    MOONRAKER_FORK_SERVICE_TEMPLATE,
-    MOONRAKER_FORK_SPEEDUPS_REQ_FILE,
-    MOONRAKER_FORK_DEPS_JSON_FILE,
-    MOONRAKER_FORK_TAG,
+from components.moonraker_tope import (
+    EXIT_MOONRAKER_TOPE_SETUP,
+    MOONRAKER_TOPE_DIR,
+    MOONRAKER_TOPE_ENV_DIR,
+    MOONRAKER_TOPE_ENV_FILE_NAME,
+    MOONRAKER_TOPE_ENV_FILE_TEMPLATE,
+    MOONRAKER_TOPE_REPO_URL,
+    MOONRAKER_TOPE_REQ_FILE,
+    MOONRAKER_TOPE_SERVICE_NAME,
+    MOONRAKER_TOPE_SERVICE_TEMPLATE,
+    MOONRAKER_TOPE_SPEEDUPS_REQ_FILE,
+    MOONRAKER_TOPE_DEPS_JSON_FILE,
+    MOONRAKER_TOPE_TAG,
     POLKIT_FILE,
     POLKIT_LEGACY_FILE,
     POLKIT_SCRIPT,
@@ -37,24 +37,24 @@ from utils.sys_utils import (
 )
 
 
-def install_moonraker_fork() -> bool:
-    """Install Moonraker Fork."""
-    Logger.print_status("Installing Moonraker Fork ...")
+def install_moonraker_tope() -> bool:
+    """Install Moonraker Tope."""
+    Logger.print_status("Installing Moonraker Tope ...")
 
-    if not MOONRAKER_FORK_TAG:
+    if not MOONRAKER_TOPE_TAG:
         Logger.print_error(
-            "No tag configured for moonraker_fork in component_versions.json!"
+            "No tag configured for moonraker_tope in component_versions.json!"
         )
         return False
 
     # Step 1: Clone at pinned tag
     success = git_clone_at_tag(
-        MOONRAKER_FORK_REPO_URL,
-        MOONRAKER_FORK_DIR,
-        MOONRAKER_FORK_TAG,
+        MOONRAKER_TOPE_REPO_URL,
+        MOONRAKER_TOPE_DIR,
+        MOONRAKER_TOPE_TAG,
     )
     if not success:
-        Logger.print_error("Failed to clone moonraker-fork repository!")
+        Logger.print_error("Failed to clone moonraker-tope repository!")
         return False
 
     # Step 2: Install system dependencies
@@ -62,13 +62,13 @@ def install_moonraker_fork() -> bool:
 
     # Step 3: Create Python venv and install requirements
     try:
-        if create_python_venv(MOONRAKER_FORK_ENV_DIR, True, False):
-            if MOONRAKER_FORK_REQ_FILE.exists():
-                install_python_requirements(MOONRAKER_FORK_ENV_DIR, MOONRAKER_FORK_REQ_FILE)
-            if MOONRAKER_FORK_SPEEDUPS_REQ_FILE.exists():
-                install_python_requirements(MOONRAKER_FORK_ENV_DIR, MOONRAKER_FORK_SPEEDUPS_REQ_FILE)
+        if create_python_venv(MOONRAKER_TOPE_ENV_DIR, True, False):
+            if MOONRAKER_TOPE_REQ_FILE.exists():
+                install_python_requirements(MOONRAKER_TOPE_ENV_DIR, MOONRAKER_TOPE_REQ_FILE)
+            if MOONRAKER_TOPE_SPEEDUPS_REQ_FILE.exists():
+                install_python_requirements(MOONRAKER_TOPE_ENV_DIR, MOONRAKER_TOPE_SPEEDUPS_REQ_FILE)
     except CalledProcessError:
-        Logger.print_error("Error installing Moonraker Fork requirements!")
+        Logger.print_error("Error installing Moonraker Tope requirements!")
         return False
 
     # Step 4: Install PolicyKit rules
@@ -77,14 +77,14 @@ def install_moonraker_fork() -> bool:
     # Step 5: Install systemd service
     _install_service()
 
-    Logger.print_ok("Moonraker Fork successfully installed!")
-    Logger.print_info(f"Installed at tag: {MOONRAKER_FORK_TAG}")
+    Logger.print_ok("Moonraker Tope successfully installed!")
+    Logger.print_info(f"Installed at tag: {MOONRAKER_TOPE_TAG}")
     return True
 
 
 def _install_system_packages() -> None:
     """Install system dependencies from system-dependencies.json."""
-    deps_json = MOONRAKER_FORK_DEPS_JSON_FILE
+    deps_json = MOONRAKER_TOPE_DEPS_JSON_FILE
     if not deps_json.exists():
         Logger.print_info("No system-dependencies.json found, skipping system deps")
         return
@@ -117,7 +117,7 @@ def _install_system_packages() -> None:
 
 def _install_polkit() -> None:
     """Install Moonraker policykit rules."""
-    Logger.print_status("Installing Moonraker Fork policykit rules ...")
+    Logger.print_status("Installing Moonraker Tope policykit rules ...")
 
     legacy_exists = check_file_exist(POLKIT_LEGACY_FILE, True)
     polkit_exists = check_file_exist(POLKIT_FILE, True)
@@ -144,101 +144,102 @@ def _install_polkit() -> None:
 
 
 def _install_service() -> None:
-    """Install the moonraker-fork systemd service file."""
+    """Install the moonraker-tope systemd service file."""
     try:
-        if not MOONRAKER_FORK_SERVICE_TEMPLATE.exists():
+        if not MOONRAKER_TOPE_SERVICE_TEMPLATE.exists():
             Logger.print_warn("Service template not found, skipping service installation")
             return
 
-        service_content = MOONRAKER_FORK_SERVICE_TEMPLATE.read_text()
+        service_content = MOONRAKER_TOPE_SERVICE_TEMPLATE.read_text()
         service_content = service_content.replace("%USER%", CURRENT_USER)
         service_content = service_content.replace(
-            "%MOONRAKER_FORK_DIR%", MOONRAKER_FORK_DIR.as_posix()
+            "%MOONRAKER_TOPE_DIR%", MOONRAKER_TOPE_DIR.as_posix()
         )
         service_content = service_content.replace(
-            "%ENV%", MOONRAKER_FORK_ENV_DIR.as_posix()
+            "%ENV%", MOONRAKER_TOPE_ENV_DIR.as_posix()
         )
         service_content = service_content.replace(
             "%ENV_FILE%",
-            SYSTEMD.joinpath(MOONRAKER_FORK_ENV_FILE_NAME).as_posix(),
+            str(Path.home() / "printer_data" / "systemd" / MOONRAKER_TOPE_ENV_FILE_NAME),
         )
 
-        service_path = SYSTEMD.joinpath(MOONRAKER_FORK_SERVICE_NAME)
+        service_path = SYSTEMD.joinpath(MOONRAKER_TOPE_SERVICE_NAME)
         run(["sudo", "tee", service_path.as_posix()],
             input=service_content.encode(), stdout=DEVNULL, check=True)
 
         # Write env file
-        if MOONRAKER_FORK_ENV_FILE_TEMPLATE.exists():
-            env_content = MOONRAKER_FORK_ENV_FILE_TEMPLATE.read_text()
+        if MOONRAKER_TOPE_ENV_FILE_TEMPLATE.exists():
+            env_content = MOONRAKER_TOPE_ENV_FILE_TEMPLATE.read_text()
             env_content = env_content.replace(
-                "%MOONRAKER_FORK_DIR%", MOONRAKER_FORK_DIR.as_posix()
+                "%MOONRAKER_TOPE_DIR%", MOONRAKER_TOPE_DIR.as_posix()
             )
             env_content = env_content.replace(
                 "%PRINTER_DATA%",
                 f"{Path.home()}/printer_data",
             )
-            env_path = SYSTEMD.joinpath(MOONRAKER_FORK_ENV_FILE_NAME)
-            run(["sudo", "tee", env_path.as_posix()],
-                input=env_content.encode(), stdout=DEVNULL, check=True)
+            env_dir = Path.home() / "printer_data" / "systemd"
+            env_dir.mkdir(parents=True, exist_ok=True)
+            env_path = env_dir / MOONRAKER_TOPE_ENV_FILE_NAME
+            env_path.write_text(env_content)
 
         run(["sudo", "systemctl", "daemon-reload"], check=True)
-        run(["sudo", "systemctl", "enable", MOONRAKER_FORK_SERVICE_NAME], check=True)
-        Logger.print_ok("Moonraker Fork service installed")
+        run(["sudo", "systemctl", "enable", MOONRAKER_TOPE_SERVICE_NAME], check=True)
+        Logger.print_ok("Moonraker Tope service installed")
     except (CalledProcessError, OSError) as e:
         Logger.print_error(f"Error installing service: {e}")
 
 
-def update_moonraker_fork() -> bool:
-    """Update Moonraker Fork to the configured tag version."""
-    if not MOONRAKER_FORK_DIR.exists():
-        Logger.print_info("Moonraker Fork is not installed. Skipping ...")
+def update_moonraker_tope() -> bool:
+    """Update Moonraker Tope to the configured tag version."""
+    if not MOONRAKER_TOPE_DIR.exists():
+        Logger.print_info("Moonraker Tope is not installed. Skipping ...")
         return False
 
-    Logger.print_status("Updating Moonraker Fork ...")
+    Logger.print_status("Updating Moonraker Tope ...")
 
     try:
-        cmd_sysctl_service(MOONRAKER_FORK_SERVICE_NAME, "stop")
+        cmd_sysctl_service(MOONRAKER_TOPE_SERVICE_NAME, "stop")
 
         success = git_clone_at_tag(
-            MOONRAKER_FORK_REPO_URL,
-            MOONRAKER_FORK_DIR,
-            MOONRAKER_FORK_TAG,
+            MOONRAKER_TOPE_REPO_URL,
+            MOONRAKER_TOPE_DIR,
+            MOONRAKER_TOPE_TAG,
             force=True,
         )
         if not success:
-            Logger.print_error("Failed to update moonraker-fork!")
+            Logger.print_error("Failed to update moonraker-tope!")
             return False
 
-        if MOONRAKER_FORK_REQ_FILE.exists():
-            install_python_requirements(MOONRAKER_FORK_ENV_DIR, MOONRAKER_FORK_REQ_FILE)
-        if MOONRAKER_FORK_SPEEDUPS_REQ_FILE.exists():
-            install_python_requirements(MOONRAKER_FORK_ENV_DIR, MOONRAKER_FORK_SPEEDUPS_REQ_FILE)
+        if MOONRAKER_TOPE_REQ_FILE.exists():
+            install_python_requirements(MOONRAKER_TOPE_ENV_DIR, MOONRAKER_TOPE_REQ_FILE)
+        if MOONRAKER_TOPE_SPEEDUPS_REQ_FILE.exists():
+            install_python_requirements(MOONRAKER_TOPE_ENV_DIR, MOONRAKER_TOPE_SPEEDUPS_REQ_FILE)
 
-        cmd_sysctl_service(MOONRAKER_FORK_SERVICE_NAME, "start")
-        Logger.print_ok("Moonraker Fork updated successfully.")
+        cmd_sysctl_service(MOONRAKER_TOPE_SERVICE_NAME, "start")
+        Logger.print_ok("Moonraker Tope updated successfully.")
         return True
     except CalledProcessError as e:
-        Logger.print_error(f"Error updating Moonraker Fork: {e}")
+        Logger.print_error(f"Error updating Moonraker Tope: {e}")
         return False
 
 
-def remove_moonraker_fork() -> None:
-    """Remove Moonraker Fork installation."""
-    if not MOONRAKER_FORK_DIR.exists():
-        Logger.print_info("Moonraker Fork is not installed. Skipping ...")
+def remove_moonraker_tope() -> None:
+    """Remove Moonraker Tope installation."""
+    if not MOONRAKER_TOPE_DIR.exists():
+        Logger.print_info("Moonraker Tope is not installed. Skipping ...")
         return
 
-    Logger.print_status("Removing Moonraker Fork ...")
+    Logger.print_status("Removing Moonraker Tope ...")
 
     try:
-        cmd_sysctl_service(MOONRAKER_FORK_SERVICE_NAME, "stop")
+        cmd_sysctl_service(MOONRAKER_TOPE_SERVICE_NAME, "stop")
     except CalledProcessError:
         pass
 
     # Remove service files
     for f in [
-        SYSTEMD.joinpath(MOONRAKER_FORK_SERVICE_NAME),
-        SYSTEMD.joinpath(MOONRAKER_FORK_ENV_FILE_NAME),
+        SYSTEMD.joinpath(MOONRAKER_TOPE_SERVICE_NAME),
+        Path.home() / "printer_data" / "systemd" / MOONRAKER_TOPE_ENV_FILE_NAME,
     ]:
         if f.exists():
             run(["sudo", "rm", f.as_posix()], check=False)
@@ -250,15 +251,15 @@ def remove_moonraker_fork() -> None:
         pass
 
     # Remove directories
-    for d in [MOONRAKER_FORK_DIR, MOONRAKER_FORK_ENV_DIR]:
+    for d in [MOONRAKER_TOPE_DIR, MOONRAKER_TOPE_ENV_DIR]:
         if d.exists():
             shutil.rmtree(d)
             Logger.print_info(f"Removed {d}")
 
-    Logger.print_ok("Moonraker Fork removed.")
+    Logger.print_ok("Moonraker Tope removed.")
 
 
-def get_moonraker_fork_status() -> ComponentStatus:
-    """Get installation status of moonraker-fork."""
-    files = [SYSTEMD.joinpath(MOONRAKER_FORK_SERVICE_NAME)]
-    return get_install_status(MOONRAKER_FORK_DIR, files=files)
+def get_moonraker_tope_status() -> ComponentStatus:
+    """Get installation status of moonraker-tope."""
+    files = [SYSTEMD.joinpath(MOONRAKER_TOPE_SERVICE_NAME)]
+    return get_install_status(MOONRAKER_TOPE_DIR, files=files)

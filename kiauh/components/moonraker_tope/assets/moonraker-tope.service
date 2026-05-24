@@ -1,5 +1,5 @@
 [Unit]
-Description=API Server for Klipper (Moonraker Fork)
+Description=API Server for Klipper (Moonraker Tope)
 Documentation=https://moonraker.readthedocs.io/
 Requires=network-online.target
 After=network-online.target
@@ -12,8 +12,8 @@ Type=simple
 User=%USER%
 SupplementaryGroups=moonraker-admin
 RemainAfterExit=yes
-WorkingDirectory=%MOONRAKER_FORK_DIR%
+WorkingDirectory=%MOONRAKER_TOPE_DIR%
 EnvironmentFile=%ENV_FILE%
-ExecStart=%ENV%/bin/python $MOONRAKER_FORK_ARGS
+ExecStart=%ENV%/bin/python $MOONRAKER_TOPE_ARGS
 Restart=always
 RestartSec=10

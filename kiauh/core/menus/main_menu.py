@@ -76,10 +76,10 @@ class MainMenu(BaseMenu):
         self._get_component_status("cn", get_crowsnest_status)
 
         from components.klipper_5axis.klipper_5axis import get_klipper_5axis_status
-        from components.moonraker_fork.moonraker_fork import get_moonraker_fork_status
+        from components.moonraker_tope.moonraker_tope import get_moonraker_tope_status
         from components.printer_gui.printer_gui import get_printer_gui_status
         self._get_component_status("k5", get_klipper_5axis_status)
-        self._get_component_status("mf", get_moonraker_fork_status)
+        self._get_component_status("mf", get_moonraker_tope_status)
         self._get_component_status("pg", get_printer_gui_status)
 
         self.cc_status = get_current_client_config()

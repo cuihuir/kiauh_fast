@@ -37,7 +37,7 @@ class QuickRemoveMenu(BaseMenu):
             "klipperscreen": False,
             "crowsnest": False,
             "klipper_5axis": False,
-            "moonraker_fork": False,
+            "moonraker_tope": False,
             "printer_gui": False,
         }
 
@@ -55,7 +55,7 @@ class QuickRemoveMenu(BaseMenu):
             "5": Option(method=self.toggle_klipperscreen),
             "6": Option(method=self.toggle_crowsnest),
             "7": Option(method=self.toggle_klipper_5axis),
-            "8": Option(method=self.toggle_moonraker_fork),
+            "8": Option(method=self.toggle_moonraker_tope),
             "9": Option(method=self.toggle_printer_gui),
             "a": Option(method=self.select_all),
             "c": Option(method=self.clear_all),
@@ -81,7 +81,7 @@ class QuickRemoveMenu(BaseMenu):
         o5 = checked if self.selections["klipperscreen"] else unchecked
         o6 = checked if self.selections["crowsnest"] else unchecked
         o7 = checked if self.selections["klipper_5axis"] else unchecked
-        o8 = checked if self.selections["moonraker_fork"] else unchecked
+        o8 = checked if self.selections["moonraker_tope"] else unchecked
         o9 = checked if self.selections["printer_gui"] else unchecked
 
         def status_tag(s: int) -> str:
@@ -99,11 +99,11 @@ class QuickRemoveMenu(BaseMenu):
         cn_inst = status_tag(get_crowsnest_status().status)
 
         from components.klipper_5axis.klipper_5axis import get_klipper_5axis_status
-        from components.moonraker_fork.moonraker_fork import get_moonraker_fork_status
+        from components.moonraker_tope.moonraker_tope import get_moonraker_tope_status
         from components.printer_gui.printer_gui import get_printer_gui_status
 
         k5axis_inst = status_tag(get_klipper_5axis_status().status)
-        mrfork_inst = status_tag(get_moonraker_fork_status().status)
+        mrfork_inst = status_tag(get_moonraker_tope_status().status)
         pgui_inst = status_tag(get_printer_gui_status().status)
 
         menu = textwrap.dedent(
@@ -119,7 +119,7 @@ class QuickRemoveMenu(BaseMenu):
             ║ 5) {o5} KlipperScreen  {ks_inst:<30}║
             ║ 6) {o6} Crowsnest      {cn_inst:<30}║
             ║ 7) {o7} Klipper 5-axis {k5axis_inst:<30}║
-            ║ 8) {o8} Moonraker Fork {mrfork_inst:<30}║
+            ║ 8) {o8} Moonraker Tope {mrfork_inst:<30}║
             ║ 9) {o9} Printer GUI    {pgui_inst:<30}║
             ╟───────────────────────────────────────────────────────╢
             ║ Tip: Enter multiple numbers (e.g., 125 or 1 2 5)    ║
@@ -153,8 +153,8 @@ class QuickRemoveMenu(BaseMenu):
     def toggle_klipper_5axis(self, **kwargs) -> None:
         self.selections["klipper_5axis"] = not self.selections["klipper_5axis"]
 
-    def toggle_moonraker_fork(self, **kwargs) -> None:
-        self.selections["moonraker_fork"] = not self.selections["moonraker_fork"]
+    def toggle_moonraker_tope(self, **kwargs) -> None:
+        self.selections["moonraker_tope"] = not self.selections["moonraker_tope"]
 
     def toggle_printer_gui(self, **kwargs) -> None:
         self.selections["printer_gui"] = not self.selections["printer_gui"]
@@ -342,14 +342,14 @@ class QuickRemoveMenu(BaseMenu):
             return
         remove_klipper_5axis()
 
-    def _remove_moonraker_fork(self) -> None:
-        from components.moonraker_fork import MOONRAKER_FORK_DIR
-        from components.moonraker_fork.moonraker_fork import remove_moonraker_fork
+    def _remove_moonraker_tope(self) -> None:
+        from components.moonraker_tope import MOONRAKER_TOPE_DIR
+        from components.moonraker_tope.moonraker_tope import remove_moonraker_tope
 
-        if not MOONRAKER_FORK_DIR.exists():
-            Logger.print_info("Moonraker Fork is not installed, skipping... / Moonraker Fork 未安装，跳过...")
+        if not MOONRAKER_TOPE_DIR.exists():
+            Logger.print_info("Moonraker Tope is not installed, skipping... / Moonraker Tope 未安装，跳过...")
             return
-        remove_moonraker_fork()
+        remove_moonraker_tope()
 
     def _remove_printer_gui(self) -> None:
         from components.printer_gui import PRINTER_GUI_DIR
@@ -408,7 +408,7 @@ class QuickRemoveMenu(BaseMenu):
                     "5": self.toggle_klipperscreen,
                     "6": self.toggle_crowsnest,
                     "7": self.toggle_klipper_5axis,
-                    "8": self.toggle_moonraker_fork,
+                    "8": self.toggle_moonraker_tope,
                     "9": self.toggle_printer_gui,
                 }
 

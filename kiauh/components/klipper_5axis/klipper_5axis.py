@@ -84,7 +84,7 @@ def _install_service() -> None:
         service_content = service_content.replace("%KLIPPER_5AXIS_DIR%", KLIPPER_5AXIS_DIR.as_posix())
         service_content = service_content.replace("%ENV%", KLIPPER_5AXIS_ENV_DIR.as_posix())
         service_content = service_content.replace(
-            "%ENV_FILE%", SYSTEMD.joinpath(KLIPPER_5AXIS_ENV_FILE_NAME).as_posix()
+            "%ENV_FILE%", str(Path.home() / "printer_data" / "systemd" / KLIPPER_5AXIS_ENV_FILE_NAME)
         )
 
         service_path = SYSTEMD.joinpath(KLIPPER_5AXIS_SERVICE_NAME)
@@ -99,9 +99,10 @@ def _install_service() -> None:
         env_content = env_content.replace("%LOG%", f"{Path.home()}/printer_data/logs/{KLIPPER_5AXIS_LOG_NAME}")
         env_content = env_content.replace("%UDS%", f"{Path.home()}/printer_data/comms/{KLIPPER_5AXIS_UDS_NAME}")
 
-        env_path = SYSTEMD.joinpath(KLIPPER_5AXIS_ENV_FILE_NAME)
-        run(["sudo", "tee", env_path.as_posix()],
-            input=env_content.encode(), stdout=DEVNULL, check=True)
+        env_dir = Path.home() / "printer_data" / "systemd"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        env_path = env_dir / KLIPPER_5AXIS_ENV_FILE_NAME
+        env_path.write_text(env_content)
 
         run(["sudo", "systemctl", "daemon-reload"], check=True)
         run(["sudo", "systemctl", "enable", KLIPPER_5AXIS_SERVICE_NAME], check=True)
@@ -144,7 +145,8 @@ def remove_klipper_5axis() -> None:
     except CalledProcessError:
         pass
 
-    for f in [SYSTEMD.joinpath(KLIPPER_5AXIS_SERVICE_NAME), SYSTEMD.joinpath(KLIPPER_5AXIS_ENV_FILE_NAME)]:
+    for f in [SYSTEMD.joinpath(KLIPPER_5AXIS_SERVICE_NAME),
+               Path.home() / "printer_data" / "systemd" / KLIPPER_5AXIS_ENV_FILE_NAME]:
         if f.exists():
             run(["sudo", "rm", f.as_posix()], check=False)
 
