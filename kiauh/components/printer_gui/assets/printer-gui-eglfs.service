@@ -13,8 +13,7 @@ User=%USER%
 WorkingDirectory=%PRINTER_GUI_DIR%
 Environment=HOME=%HOME_DIR%
 Environment=QT_QPA_PLATFORM=eglfs
-EnvironmentFile=%ENV_FILE%
-ExecStart=%PRINTER_GUI_DIR%/.venv/bin/python %PRINTER_GUI_DIR%/main.py
+ExecStart=%PRINTER_GUI_ENV_DIR%/bin/python %PRINTER_GUI_DIR%/main.py
 Restart=always
 RestartSec=2
 StandardOutput=journal

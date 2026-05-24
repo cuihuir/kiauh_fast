@@ -1,5 +1,5 @@
 [Unit]
-Description=3D Printer GUI (QML)
+Description=3D Printer GUI (X11 mode)
 Documentation=https://github.com/cuihuir/printer-gui-qml
 After=network-online.target dbus.socket systemd-logind.service
 Wants=network-online.target
@@ -12,8 +12,7 @@ Type=simple
 User=%USER%
 WorkingDirectory=%PRINTER_GUI_DIR%
 Environment=HOME=%HOME_DIR%
-EnvironmentFile=%ENV_FILE%
-ExecStart=%PRINTER_GUI_DIR%/.venv/bin/python %PRINTER_GUI_DIR%/main.py
+ExecStart=%PRINTER_GUI_ENV_DIR%/bin/python %PRINTER_GUI_DIR%/main.py
 Restart=always
 RestartSec=2
 StandardOutput=journal

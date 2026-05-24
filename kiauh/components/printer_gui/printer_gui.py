@@ -130,6 +130,9 @@ def _install_service() -> None:
         service_content = service_content.replace(
             "%PRINTER_GUI_DIR%", PRINTER_GUI_DIR.as_posix()
         )
+        service_content = service_content.replace(
+            "%PRINTER_GUI_ENV_DIR%", PRINTER_GUI_ENV_DIR.as_posix()
+        )
 
         # Determine service name from template
         if "eglfs" in template.name:
@@ -148,6 +151,10 @@ def _install_service() -> None:
                 script_dst = Path("/usr/local/bin") / script_name
                 run(["sudo", "cp", script_src.as_posix(), script_dst.as_posix()], check=True)
                 run(["sudo", "chmod", "755", script_dst.as_posix()], check=True)
+                # Fix hardcoded paths in start scripts (repo uses printer-gui-qml)
+                run(["sudo", "sed", "-i",
+                     f"s|printer-gui-qml|{PRINTER_GUI_DIR.name}|g",
+                     script_dst.as_posix()], check=True)
 
         run(["sudo", "systemctl", "daemon-reload"], check=True)
         run(["sudo", "systemctl", "enable", service_name], check=True)
