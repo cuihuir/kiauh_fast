@@ -6,6 +6,7 @@ from pathlib import Path
 from subprocess import DEVNULL, CalledProcessError, run
 
 from components.printer_gui import (
+    MODULE_PATH,
     EXIT_PRINTER_GUI_SETUP,
     PRINTER_GUI_DIR,
     PRINTER_GUI_ENV_DIR,
@@ -111,13 +112,14 @@ def _install_system_packages() -> None:
 
 def _install_service() -> None:
     """Install printer-gui systemd service (defaults to EGLFS mode)."""
+    from components.printer_gui import MODULE_PATH
     try:
-        # Use EGLFS service by default for embedded displays
-        template = PRINTER_GUI_DIR / "deploy" / "printer-gui-eglfs.service"
+        # Use our asset templates (not the repo's deploy directory)
+        template = MODULE_PATH / "assets" / "printer-gui-eglfs.service"
         if not template.exists():
-            template = PRINTER_GUI_DIR / "deploy" / "printer-gui.service"
+            template = MODULE_PATH / "assets" / "printer-gui.service"
         if not template.exists():
-            Logger.print_warn("No service file found in deploy/, skipping service setup")
+            Logger.print_warn("No service template found, skipping service setup")
             return
 
         service_content = template.read_text()
