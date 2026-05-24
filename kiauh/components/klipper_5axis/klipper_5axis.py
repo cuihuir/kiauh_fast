@@ -124,8 +124,8 @@ def _install_service() -> None:
             run(["sudo", "tee", env_path.as_posix()],
                 input=env_content.encode(), stdout=DEVNULL, check=True)
 
-        run(["systemctl", "daemon-reload"], check=True)
-        run(["systemctl", "enable", KLIPPER_5AXIS_SERVICE_NAME], check=True)
+        run(["sudo", "systemctl", "daemon-reload"], check=True)
+        run(["sudo", "systemctl", "enable", KLIPPER_5AXIS_SERVICE_NAME], check=True)
         Logger.print_ok("Klipper 5-axis service installed")
     except (CalledProcessError, OSError) as e:
         Logger.print_error(f"Error installing service: {e}")
@@ -186,7 +186,7 @@ def remove_klipper_5axis() -> None:
             Logger.print_info(f"Removed {f}")
 
     try:
-        run(["systemctl", "daemon-reload"], check=True)
+        run(["sudo", "systemctl", "daemon-reload"], check=True)
     except CalledProcessError:
         pass
 

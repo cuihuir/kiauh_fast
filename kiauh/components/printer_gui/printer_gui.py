@@ -147,8 +147,8 @@ def _install_service() -> None:
                 run(["sudo", "cp", script_src.as_posix(), script_dst.as_posix()], check=True)
                 run(["sudo", "chmod", "755", script_dst.as_posix()], check=True)
 
-        run(["systemctl", "daemon-reload"], check=True)
-        run(["systemctl", "enable", service_name], check=True)
+        run(["sudo", "systemctl", "daemon-reload"], check=True)
+        run(["sudo", "systemctl", "enable", service_name], check=True)
         Logger.print_ok(f"Printer GUI service ({service_name}) installed")
     except (CalledProcessError, OSError) as e:
         Logger.print_error(f"Error installing service: {e}")
@@ -228,7 +228,7 @@ def remove_printer_gui() -> None:
             script_path.unlink()
 
     try:
-        run(["systemctl", "daemon-reload"], check=True)
+        run(["sudo", "systemctl", "daemon-reload"], check=True)
     except CalledProcessError:
         pass
 
