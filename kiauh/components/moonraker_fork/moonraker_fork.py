@@ -62,7 +62,7 @@ def install_moonraker_fork() -> bool:
 
     # Step 3: Create Python venv and install requirements
     try:
-        if create_python_venv(MOONRAKER_FORK_ENV_DIR, False, False):
+        if create_python_venv(MOONRAKER_FORK_ENV_DIR, True, False):
             if MOONRAKER_FORK_REQ_FILE.exists():
                 install_python_requirements(MOONRAKER_FORK_ENV_DIR, MOONRAKER_FORK_REQ_FILE)
             if MOONRAKER_FORK_SPEEDUPS_REQ_FILE.exists():
