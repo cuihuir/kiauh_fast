@@ -68,7 +68,13 @@ def install_klipper_5axis() -> bool:
 
 def _install_system_packages() -> None:
     """Install system packages needed by klipper."""
-    packages = ["python3-virtualenv", "dfu-util"]
+    packages = [
+        "python3-virtualenv",
+        "dfu-util",
+        "gcc-arm-none-eabi",
+        "binutils-arm-none-eabi",
+        "libnewlib-arm-none-eabi",
+    ]
     try:
         run(["sudo", "apt-get", "install", "-y", "-qq"] + packages,
             check=True, stdout=DEVNULL, stderr=DEVNULL)
