@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, CalledProcessError, run
@@ -20,8 +21,10 @@ from typing import List
 from components.crowsnest import (
     CROWSNEST_DIR,
     CROWSNEST_REPO,
+    CROWSNEST_SERVICE_FILE,
 )
 from components.klipper.klipper import Klipper
+from core.constants import CURRENT_USER
 from core.logger import DialogType, Logger
 from utils.git_utils import git_clone_wrapper
 from utils.input_utils import get_confirm
@@ -41,6 +44,107 @@ CROWSNEST_REQUIRED_PACKAGES = [
     "python3-iniparse",
     "v4l-utils",
 ]
+
+
+def ensure_crowsnest_install_config(
+    crowsnest_dir: Path = CROWSNEST_DIR,
+    base_user: str = CURRENT_USER,
+) -> bool:
+    """
+    Ensure crowsnest's installer config targets the real login user.
+
+    Running `sudo make config` writes BASE_USER=root, which later generates a
+    service with WorkingDirectory=/home/root/crowsnest. Keep the file explicit
+    so `sudo make install` uses the intended user paths.
+    """
+    config_file = crowsnest_dir / "tools" / ".config"
+    user_home = Path("/home") / base_user
+    defaults = {
+        "BASE_USER": base_user,
+        "CROWSNEST_CONFIG_PATH": str(user_home / "printer_data" / "config"),
+        "CROWSNEST_LOG_PATH": str(user_home / "printer_data" / "logs"),
+        "CROWSNEST_ENV_PATH": str(user_home / "printer_data" / "systemd"),
+        "CROWSNEST_VENV_PATH": str(user_home / "crowsnest-env"),
+    }
+
+    try:
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        lines = (
+            config_file.read_text(encoding="utf-8").splitlines()
+            if config_file.exists()
+            else []
+        )
+
+        seen = set()
+        updated_lines = []
+        for line in lines:
+            key = line.split("=", 1)[0] if "=" in line else ""
+            if key in defaults:
+                updated_lines.append(f'{key}="{defaults[key]}"')
+                seen.add(key)
+            else:
+                updated_lines.append(line)
+
+        for key, value in defaults.items():
+            if key not in seen:
+                updated_lines.append(f'{key}="{value}"')
+
+        config_file.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+        return True
+    except OSError as e:
+        Logger.print_error(f"Failed to write crowsnest installer config: {e}")
+        return False
+
+
+def repair_crowsnest_service_user(
+    service_file: Path = CROWSNEST_SERVICE_FILE,
+    base_user: str = CURRENT_USER,
+    reload_systemd: bool = True,
+) -> bool:
+    """Repair a service file generated with root as the crowsnest base user."""
+    if not service_file.exists():
+        return True
+
+    try:
+        lines = service_file.read_text(encoding="utf-8").splitlines()
+        changed = False
+        repaired = []
+
+        for line in lines:
+            if line.startswith("User="):
+                new_line = f"User={base_user}"
+            elif line.startswith("WorkingDirectory="):
+                new_line = f"WorkingDirectory=/home/{base_user}/crowsnest"
+            else:
+                new_line = line
+
+            changed = changed or new_line != line
+            repaired.append(new_line)
+
+        if not changed:
+            return True
+
+        service_contents = "\n".join(repaired) + "\n"
+        if os.access(service_file, os.W_OK):
+            service_file.write_text(service_contents, encoding="utf-8")
+        else:
+            run(
+                ["sudo", "tee", str(service_file)],
+                input=service_contents,
+                text=True,
+                check=True,
+                stdout=DEVNULL,
+            )
+        if reload_systemd:
+            run(["sudo", "systemctl", "daemon-reload"], check=False)
+        Logger.print_ok("Crowsnest service user/path repaired.")
+        return True
+    except OSError as e:
+        Logger.print_error(f"Failed to repair crowsnest service file: {e}")
+        return False
+    except CalledProcessError as e:
+        Logger.print_error(f"Failed to repair crowsnest service file: {e}")
+        return False
 
 
 def check_apt_sources_validity() -> bool:
@@ -338,14 +442,15 @@ def run_crowsnest_makefile_install() -> bool:
     """
     try:
         # Step 1: make config
-        Logger.print_status("Running 'sudo make config' ...")
-        Logger.print_info("This may prompt for sudo password...")
+        Logger.print_status("Running 'make config' ...")
 
         run(
-            ["sudo", "make", "config"],
+            ["make", "config"],
             cwd=CROWSNEST_DIR,
             check=True,
         )
+        if not ensure_crowsnest_install_config():
+            return False
         Logger.print_ok("Configuration successful!")
 
         # Step 2: make install（网络失败时自动重试）
@@ -407,7 +512,7 @@ def run_crowsnest_makefile_install() -> bool:
             return False
 
         Logger.print_ok("Crowsnest installation successful!")
-        return True
+        return repair_crowsnest_service_user()
 
     except CalledProcessError as e:
         Logger.print_error(f"Error during Makefile installation: {e}")
