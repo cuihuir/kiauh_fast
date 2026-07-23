@@ -3,8 +3,8 @@
     "description": "Component version pinning configuration. Each component specifies its target git tag.",
     "components": {
         "klipper_5axis": {
-            "repo_url": "git@github.com:cuihuir/5-axis.git",
-            "tag": "v0.4.0",
+            "repo_url": "git@github.com:cuihuir/klipper-5axis.git",
+            "tag": "v0.4.1",
             "install_dir": "klipper-5axis",
             "env_dir": "klipper-5axis-env"
         },

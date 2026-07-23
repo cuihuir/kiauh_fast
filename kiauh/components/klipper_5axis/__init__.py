@@ -8,7 +8,10 @@ MODULE_PATH = Path(__file__).resolve().parent
 _vcm = VersionConfigManager()
 _cfg = _vcm.get_config("klipper_5axis")
 
-KLIPPER_5AXIS_REPO_URL = _cfg.repo_url if _cfg else "git@github.com:cuihuir/5-axis.git"
+KLIPPER_5AXIS_REPO_URL = (
+    _cfg.repo_url
+    if _cfg else "git@github.com:cuihuir/klipper-5axis.git"
+)
 KLIPPER_5AXIS_TAG = _cfg.tag if _cfg else ""
 
 # names
